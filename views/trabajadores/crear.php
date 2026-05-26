@@ -4,27 +4,38 @@ require_once '../../config/conexion.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Obtenemos los datos con valores por defecto si el formulario no los envía
-        $datos = [
-            ':num' => $_POST['numero_documento'] ?? '000',
-            ':nom' => $_POST['nombres'] ?? 'Sin nombre',
-            ':ape' => $_POST['apellidos'] ?? 'Sin apellido',
-            ':fec' => $_POST['fecha_nacimiento'] ?? '1990-01-01',
-            ':lug' => $_POST['lugar_nacimiento'] ?? 'No especificado',
-            ':cel' => $_POST['telefono'] ?? '000',
-            ':cor' => $_POST['correo_personal'] ?? 'sin@correo.com',
-            ':t_doc'=> $_POST['tipo_documento'] ?? 1,
-            ':gen'  => $_POST['genero'] ?? 1,
-            ':edu'  => 1, ':nac' => 1, ':san' => 1, ':est' => 1, ':eps' => 1, ':etn' => 1
-        ];
-
-        $sql = "INSERT INTO trabajadores (numero_documento, nombres, apellidos, fecha_nacimiento, lugar_nacimiento, celular, correo_personal, id_tipos_documentos, id_generos, id_formacion_educativa, id_nacionalidad, id_sangre, id_estado_civil, id_eps, id_grupos_etnicos) 
-                VALUES (:num, :nom, :ape, :fec, :lug, :cel, :cor, :t_doc, :gen, :edu, :nac, :san, :est, :eps, :etn)";
+        // Recibimos los datos del formulario
+        $num = $_POST['numero_documento'] ?? '000';
+        $nom = $_POST['nombres'] ?? 'Sin nombre';
+        $ape = $_POST['apellidos'] ?? 'Sin apellido';
+        $fec = $_POST['fecha_nacimiento'] ?? '1990-01-01';
+        $gen = (int)($_POST['genero'] ?? 1);
         
-        $conexion->prepare($sql)->execute($datos);
+        // --- ESTO ES LO QUE FALTABA ---
+        // Aquí capturamos los IDs numéricos que vienen del <select>
+        $id_area = (int)($_POST['id_area'] ?? 0);
+        $id_cargo = (int)($_POST['id_cargo'] ?? 0);
+
+        // Preparamos la inserción con las nuevas columnas
+        $sql = "INSERT INTO trabajadores 
+                (numero_documento, nombres, apellidos, fecha_nacimiento, id_generos, id_area, id_cargo) 
+                VALUES (:num, :nom, :ape, :fec, :gen, :area, :cargo)";
+        
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute([
+            ':num'   => $num,
+            ':nom'   => $nom,
+            ':ape'   => $ape,
+            ':fec'   => $fec,
+            ':gen'   => $gen,
+            ':area'  => $id_area,
+            ':cargo' => $id_cargo
+        ]);
+
         header("Location: index.php?mensaje=exito");
+        exit();
     } catch (Exception $e) {
-        die("Error: " . $e->getMessage());
+        die("Error al guardar: " . $e->getMessage());
     }
 }
 ?>

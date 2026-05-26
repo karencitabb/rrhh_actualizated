@@ -1,70 +1,151 @@
 <?php
-error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+// --- BLOQUE PHP ÚNICO AL INICIO ---
+error_reporting(0);
 session_start();
 if (!isset($_SESSION['logueado']) || !$_SESSION['logueado']) { header("Location: ../../index.php"); exit(); }
 
 require_once '../../config/conexion.php';
 
-// Inicialización
 $nombres = $_SESSION['nombres'] ?? 'Usuario';
 $apellidos = $_SESSION['apellidos'] ?? '';
-$id_roles = $_SESSION['id_roles'] ?? 0;
-$rol_nombre = match((int)$id_roles){1=>'Administrador',2=>'Recursos Humanos',3=>'SST',default=>'Empleado'};
 $inicial = strtoupper(mb_substr($nombres,0,1));
+$rol_nombre = match((int)($_SESSION['id_roles'] ?? 0)){1=>'Administrador',2=>'Recursos Humanos',3=>'SST',default=>'Empleado'};
 
 $buscar = trim($_GET['buscar'] ?? '');
 $area   = trim($_GET['area']   ?? '');
+$estado = trim($_GET['estado'] ?? '');
+$pagina = max(1, (int)($_GET['pagina'] ?? 1));
+$por_pag = 12;
+$offset = ($pagina - 1) * $por_pag;
 
 $trabajadores = [];
 $total_filtrado = 0;
-$tw = 0; $total_hombres = 0; $total_mujeres = 0;
+$tw = 0;
+$total_hombres = 0;
+$total_mujeres = 0;
+$nuevos_mes = 0;
+$has_area = false;
+$has_cargo = false;
 
+// --- REEMPLAZA LAS CONSULTAS DE LAS TARJETAS EN TU PHP SUPERIOR POR ESTAS ---
 try {
-    // 1. Total de trabajadores
+    // 1. Total general de trabajadores activos (ya lo tienes, déjalo igual)
     $tw = $conexion->query("SELECT COUNT(*) FROM trabajadores")->fetchColumn() ?: 0;
-
-    // 2. Contar hombres y mujeres mediante JOIN
-    // Nota: Si tu columna en la tabla generos se llama 'descripcion' en vez de 'nombre', cámbialo abajo.
-    $q_hombres = $conexion->query("SELECT COUNT(*) FROM trabajadores t JOIN generos g ON t.id_generos = g.id_generos WHERE g.nombre = 'Masculino'");
-    $total_hombres = $q_hombres ? $q_hombres->fetchColumn() : 0;
-
-    $q_mujeres = $conexion->query("SELECT COUNT(*) FROM trabajadores t JOIN generos g ON t.id_generos = g.id_generos WHERE g.nombre = 'Femenino'");
-    $total_mujeres = $q_mujeres ? $q_mujeres->fetchColumn() : 0;
     
-    // 3. Consulta principal
-    $sql = "SELECT * FROM trabajadores WHERE 1=1";
-    if ($buscar !== '') {
-        $sql .= " AND (nombres LIKE '%$buscar%' OR apellidos LIKE '%$buscar%' OR numero_documento LIKE '%$buscar%')";
-    }
-    if ($area !== '') {
-        $sql .= " AND area = '$area'";
-    }
-    $sql .= " ORDER BY nombres ASC";
-    
-    $st = $conexion->query($sql);
-    $trabajadores = $st->fetchAll(PDO::FETCH_ASSOC);
-    $total_filtrado = count($trabajadores);
+   $total_hombres = $conexion->query("SELECT COUNT(*) FROM trabajadores WHERE id_generos = 2")->fetchColumn() ?: 0;
+
+    $total_mujeres = $conexion->query("SELECT COUNT(*) FROM trabajadores WHERE id_generos = 1")->fetchColumn() ?: 0;
 
 } catch (Exception $e) {
-    // Fallo silencioso
+    $total_hombres = 0;
+    $total_mujeres = 0;
 }
+    try {
+        $cols = $conexion->query("SHOW COLUMNS FROM trabajadores")->fetchAll(PDO::FETCH_COLUMN, 0);
+        $has_area = in_array('area', $cols, true);
+        $has_cargo = in_array('cargo', $cols, true);
+    } catch (Exception $e) {
+        $has_area = false;
+        $has_cargo = false;
+    }
+
+ try {
+        $cols = $conexion->query("SHOW COLUMNS FROM trabajadores")->fetchAll(PDO::FETCH_COLUMN, 0);
+        // Validamos con los nuevos nombres de columnas (id_area e id_cargo)
+        $has_area = in_array('id_area', $cols, true);
+        $has_cargo = in_array('id_cargo', $cols, true);
+    } catch (Exception $e) {
+        $has_area = false;
+        $has_cargo = false;
+    }
+
+    try {
+        $params = [];
+        $where = '';
+        
+        // 1. Contador cruzado para la paginación
+        $countSql = "SELECT COUNT(*) FROM trabajadores t 
+                     LEFT JOIN areas a ON t.id_area = a.id_areas 
+                     WHERE 1=1";
+                     
+        // 2. Consulta principal con las 3 tablas conectadas
+        $sql = "SELECT t.*, 
+                       g.nombre AS genero_nombre,
+                       a.nombre_area AS nombre_area,
+                       c.nombre_cargo AS nombre_cargo
+                FROM trabajadores t
+                LEFT JOIN generos g ON t.id_generos = g.id_generos
+                LEFT JOIN areas a ON t.id_area = a.id_areas
+                LEFT JOIN cargo c ON t.id_cargo = c.id_cargo
+                WHERE 1=1";
+
+        if ($buscar !== '') {
+            $where .= " AND (t.nombres LIKE :buscar OR t.apellidos LIKE :buscar OR t.numero_documento LIKE :buscar OR t.correo_personal LIKE :buscar)";
+            $params[':buscar'] = "%$buscar%";
+        }
+
+        if ($area !== '') {
+            $where .= " AND a.nombre_area = :area";
+            $params[':area'] = $area;
+        }
+
+        if ($estado !== '') {
+            $where .= " AND t.estado = :estado";
+            $params[':estado'] = (int)$estado;
+        }
+
+        $countSql .= $where;
+        $sql .= $where . " ORDER BY t.nombres ASC LIMIT :offset, :limit";
+
+        $countStmt = $conexion->prepare($countSql);
+        foreach ($params as $key => $value) {
+            // Evitamos bindear offset y limit en el contador
+            if ($key !== ':offset' && $key !== ':limit') {
+                $countStmt->bindValue($key, $value);
+            }
+        }
+        $countStmt->execute();
+        $total_filtrado = (int)$countStmt->fetchColumn();
+
+        $st = $conexion->prepare($sql);
+        foreach ($params as $key => $value) {
+            $st->bindValue($key, $value);
+        }
+        $st->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $st->bindValue(':limit', $por_pag, PDO::PARAM_INT);
+        $st->execute();
+        $trabajadores = $st->fetchAll(PDO::FETCH_ASSOC);
+        
+    } catch (Exception $e) { $trabajadores = []; }
+
+$total_paginas = max(1, (int)ceil($total_filtrado / $por_pag));
+
+  // Cargar listas maestras: generos, areas, cargos (con fallback si no existen)
+  $generos = [];
+  $areas_list = [];
+  $cargos_list = [];
+  try{
+    $gq = $conexion->query("SELECT id_generos AS id, nombre FROM generos ORDER BY id");
+    $generos = $gq->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  }catch(Exception $e){ $generos = []; }
+  try{
+    $aq = $conexion->query("SELECT id_areas AS id, nombre_area FROM areas ORDER BY nombre_area");
+    $areas_list = $aq->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  }catch(Exception $e){ $areas_list = []; }
+  try{
+    $cq = $conexion->query("SELECT id_cargo AS id, nombre_cargo FROM cargo ORDER BY nombre_cargo");
+    $cargos_list = $cq->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  }catch(Exception $e){ $cargos_list = []; }
 
 function areaBadge($a){
     $m=['Produccion'=>['#dcfce7','#16a34a'],'Producción'=>['#dcfce7','#16a34a'],'Administrativa'=>['#dbeafe','#2563eb'],'Logística'=>['#fef9c3','#ca8a04'],'Logistica'=>['#fef9c3','#ca8a04'],'Mantenimiento'=>['#fef3c7','#d97706'],'SST'=>['#ede9fe','#7c3aed']];
-    [$bg,$col] = $m[$a] ?? ['#f3f4f6','#6b7280'];
-    return "<span class='badge-area' style='background:$bg;color:$col'>$a</span>";
+    [$bg, $col] = $m[$a] ?? ['#f3f4f6','#6b7280'];
+    return "<span class='badge-area' style='background:$bg;color:$col;padding:2px 8px;border-radius:10px;font-size:11px;'>$a</span>";
 }
-function avInit($n,$a){ return strtoupper(mb_substr($n,0,1).mb_substr($a,0,1)); }
-?>
+function avColor($id){ $avc=['#1a9945','#2563eb','#d97706','#7c3aed']; return $avc[$id % count($avc)]; }
+function avInit($n, $a){ return strtoupper(mb_substr($n,0,1).mb_substr($a,0,1)); }
+// --- AQUÍ TERMINA TODO EL PHP ---
 
-
-function areaBadge($a){
-    $m=['Produccion'=>['#dcfce7','#16a34a'],'Producción'=>['#dcfce7','#16a34a'],'Administrativa'=>['#dbeafe','#2563eb'],'Logística'=>['#fef9c3','#ca8a04'],'Logistica'=>['#fef9c3','#ca8a04'],'Mantenimiento'=>['#fef3c7','#d97706'],'SST'=>['#ede9fe','#7c3aed']];
-    [$bg,$col] = $m[$a] ?? ['#f3f4f6','#6b7280'];
-    return "<span class='badge-area' style='background:$bg;color:$col;padding:3px 11px;border-radius:20px;font-size:11.5px;'>$a</span>";
-}
-function avColor($id){ global $avc; return '#1a9945'; } // Simplificado
-function avInit($n,$a){ return strtoupper(mb_substr($n,0,1).mb_substr($a,0,1)); }
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -72,10 +153,9 @@ function avInit($n,$a){ return strtoupper(mb_substr($n,0,1).mb_substr($a,0,1)); 
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Trabajadores | PlastyPetco</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
-/* (Mantén tu CSS original aquí debajo) */
-
+ 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --green:#2ddf6e;--green-dim:#1a9945;--green-dark:#0d5c2e;
@@ -89,10 +169,10 @@ function avInit($n,$a){ return strtoupper(mb_substr($n,0,1).mb_substr($a,0,1)); 
 }
 html,body{height:100%;overflow-x:hidden}
 body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--text)}
-
+ 
 /* ── LAYOUT ── */
 .layout{display:flex;min-height:100vh}
-
+ 
 /* ── SIDEBAR ── */
 .sidebar{
   width:var(--sidebar-w);background:var(--sidebar-bg);
@@ -107,7 +187,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .sidebar-brand{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1}
 .sidebar-brand em{font-style:normal;color:var(--green)}
 .sidebar-tag{font-size:10px;color:rgba(45,223,110,0.5);margin-top:3px}
-
+ 
 .sidebar-nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
 .nav-section{font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:rgba(45,223,110,0.35);padding:12px 8px 5px;font-weight:700}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:rgba(255,255,255,0.45);font-size:13px;text-decoration:none;transition:all .18s;position:relative}
@@ -119,13 +199,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .nav-logout{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#f87171;font-size:13px;text-decoration:none;transition:background .18s}
 .nav-logout svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
 .nav-logout:hover{background:rgba(248,113,113,0.08)}
-
+ 
 /* leaf deco sidebar */
 .sidebar-leaf{position:absolute;bottom:60px;right:-8px;opacity:.18;pointer-events:none}
-
+ 
 /* ── MAIN ── */
 .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
-
+ 
 /* ── TOPBAR ── */
 .topbar{
   height:var(--topbar-h);background:var(--white);
@@ -138,7 +218,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .menu-toggle{display:none;background:none;border:none;color:var(--text-mid);cursor:pointer;padding:4px}
 .menu-toggle svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8}
 .topbar-title{font-family:'Syne',sans-serif;font-size:clamp(18px,2vw,22px);font-weight:800;color:var(--text);letter-spacing:-.4px}
-
+ 
 /* search bar */
 .search-bar{
   display:flex;align-items:center;gap:8px;
@@ -152,14 +232,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .search-bar input{background:none;border:none;outline:none;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;width:100%}
 .search-bar input::placeholder{color:var(--text-soft)}
 .search-kbd{font-size:10.5px;color:var(--text-soft);background:var(--white);border:1px solid var(--border);border-radius:5px;padding:2px 6px;white-space:nowrap}
-
+ 
 /* topbar right */
 .topbar-right{display:flex;align-items:center;gap:12px}
 .notif-btn{position:relative;width:36px;height:36px;border-radius:50%;background:var(--content-bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
 .notif-btn:hover{border-color:#b6dfc4}
 .notif-btn svg{width:17px;height:17px;stroke:var(--text-mid);fill:none;stroke-width:1.8}
 .notif-badge{position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--green);border-radius:50%;font-size:9px;font-weight:700;color:#021a08;display:flex;align-items:center;justify-content:center;border:2px solid var(--white)}
-
+ 
 /* profile pill */
 .profile-wrap{position:relative}
 .profile-btn{display:flex;align-items:center;gap:10px;background:var(--content-bg);border:1px solid var(--border);border-radius:40px;padding:6px 14px 6px 6px;cursor:pointer;transition:all .2s}
@@ -170,7 +250,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .profile-role{font-size:11px;color:var(--green-dim)}
 .profile-chevron{width:15px;height:15px;color:var(--text-soft);transition:transform .25s;flex-shrink:0}
 .profile-wrap.open .profile-chevron{transform:rotate(180deg)}
-
+ 
 /* dropdown */
 .profile-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--white);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);display:none;animation:ddIn .2s cubic-bezier(.22,1,.36,1) both;z-index:200}
 .profile-wrap.open .profile-dropdown{display:block}
@@ -184,10 +264,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .profile-dd-sep{height:1px;background:var(--border);margin:5px 0}
 .profile-dd-logout{color:#dc2626 !important}
 .profile-dd-logout:hover{background:#fff1f2 !important}
-
+ 
 /* ── CONTENT ── */
 .content{flex:1;padding:24px 28px;display:flex;flex-direction:column;gap:20px}
-
+ 
 /* ── BANNER ── */
 .banner{
   background:linear-gradient(135deg,var(--green-dark) 0%,#0d3d1e 50%,#1a5c2e 100%);
@@ -204,7 +284,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .banner-badge{position:relative;z-index:1;display:flex;align-items:center;gap:7px;background:rgba(45,223,110,0.15);border:1px solid rgba(45,223,110,0.3);border-radius:20px;padding:8px 16px;font-size:12px;color:var(--green);white-space:nowrap}
 .pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.6)}}
-
+ 
 /* ── STAT CARDS ── */
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
 .stat-card{
@@ -223,30 +303,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .stat-num{font-family:'Syne',sans-serif;font-size:clamp(26px,3vw,34px);font-weight:800;line-height:1;margin-bottom:3px}
 .stat-label{font-size:12px;color:var(--text-soft);font-weight:400;margin-bottom:10px}
 .stat-mini-chart{height:36px;width:100%}
-
+ 
 /* icon color variants */
 .ic-green{background:#eafaf1;color:#1a9945}
 .ic-blue{background:#eff6ff;color:#2563eb}
 .ic-red{background:#fff1f2;color:#dc2626}
 .ic-yellow{background:#fffbeb;color:#d97706}
 .ic-purple{background:#f5f3ff;color:#7c3aed}
-
+ 
 /* num color variants */
 .nc-green{color:#1a9945}.nc-blue{color:#2563eb}.nc-red{color:#dc2626}
 .nc-yellow{color:#d97706}.nc-purple{color:#7c3aed}
-
+ 
 /* ── BOTTOM GRID (charts + sidebar panels) ── */
 .bottom-grid{display:grid;grid-template-columns:1fr 1fr 320px;gap:16px}
-
+ 
 .panel{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
 .panel-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px}
 .panel-sub{font-size:11.5px;color:var(--text-soft);margin-bottom:16px}
 .panel-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
 .panel-header-left .panel-title{margin-bottom:2px}
-
+ 
 /* chart filter */
 .chart-filter{font-size:11.5px;color:var(--text-soft);background:var(--content-bg);border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif}
-
+ 
 /* donut legend */
 .donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .donut-chart-wrap{width:140px;height:140px;flex-shrink:0;position:relative}
@@ -257,7 +337,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-mid)}
 .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .legend-val{margin-left:auto;font-weight:600;color:var(--text)}
-
+ 
 /* activity feed */
 .activity-list{display:flex;flex-direction:column;gap:0}
 .activity-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -271,10 +351,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .see-all{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--green-dim);font-weight:500;text-decoration:none;margin-top:10px}
 .see-all svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
 .see-all:hover{color:var(--green-dark)}
-
+ 
 /* ── BOTTOM ROW ── */
 .bottom-row{display:grid;grid-template-columns:1fr 1fr 320px;gap:16px}
-
+ 
 /* vencimientos */
 .venc-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
 .venc-item:last-child{border-bottom:none}
@@ -289,7 +369,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .badge-warn{background:#fff7ed;color:#d97706;border:1px solid #fed7aa}
 .badge-ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
 .badge-urgent{background:#fff1f2;color:#dc2626;border:1px solid #fecaca}
-
+ 
 /* ausentismo */
 .absent-num{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:var(--green-dark);line-height:1}
 .absent-trend{display:flex;align-items:center;gap:5px;font-size:12px;color:#16a34a;margin:4px 0 14px}
@@ -298,7 +378,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .absent-mini{background:var(--content-bg);border:1px solid var(--border);border-radius:12px;padding:12px}
 .absent-mini-num{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text)}
 .absent-mini-lbl{font-size:11px;color:var(--text-soft);margin-top:2px}
-
+ 
 /* calendar */
 .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .cal-month{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text)}
@@ -311,7 +391,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .cal-day:hover{background:var(--content-bg)}
 .cal-day.today{background:var(--green);color:#021a08;font-weight:700;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;margin:0 auto}
 .cal-day.empty{color:transparent;pointer-events:none}
-
+ 
 /* animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .stat-card:nth-child(1){animation-delay:.04s}
@@ -319,10 +399,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .stat-card:nth-child(3){animation-delay:.12s}
 .stat-card:nth-child(4){animation-delay:.16s}
 .stat-card:nth-child(5){animation-delay:.20s}
-
+ 
 /* sidebar overlay */
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;backdrop-filter:blur(3px)}
-
+ 
 /* ── RESPONSIVE ── */
 @media(max-width:1100px){
   .bottom-grid{grid-template-columns:1fr 1fr}
@@ -350,8 +430,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
   .profile-info{display:none}
   .profile-btn{padding:4px}
 }
-
-
+ 
+ 
 /* ── PAGE HEADER ── */
 .page-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:4px}
 .page-header-left{display:flex;align-items:center;gap:16px}
@@ -366,7 +446,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .btn-new{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,var(--green),var(--green-dim));border:none;border-radius:10px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#021a08;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 3px 14px rgba(45,223,110,0.25)}
 .btn-new:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(45,223,110,0.35)}
 .btn-new svg{width:16px;height:16px;stroke:#021a08;fill:none;stroke-width:2.5}
-
+ 
 /* ── MINI STATS ── */
 .mini-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .mini-stat{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s;animation:fadeUp .5s ease both}
@@ -381,7 +461,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .mini-stat:nth-child(2){animation-delay:.08s}
 .mini-stat:nth-child(3){animation-delay:.12s}
 .mini-stat:nth-child(4){animation-delay:.16s}
-
+ 
 /* ── FILTERS BAR ── */
 .filters-bar{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow)}
 .filter-group{display:flex;flex-direction:column;gap:4px}
@@ -398,7 +478,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .btn-filter svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
 .btn-clear{color:#dc2626;border-color:#fecaca}
 .btn-clear:hover{background:#fff1f2;border-color:#fca5a5}
-
+ 
 /* ── TABLE WRAP ── */
 .table-wrap{background:var(--white);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);animation:fadeUp .5s .2s ease both}
 .table-top{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -408,7 +488,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .btn-icon{width:32px;height:32px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;color:var(--text-mid)}
 .btn-icon:hover{border-color:#b6dfc4;color:var(--green-dark)}
 .btn-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
-
+ 
 /* ── TABLE ── */
 table{width:100%;border-collapse:collapse}
 thead tr{background:var(--bg);border-bottom:1px solid var(--border)}
@@ -420,7 +500,7 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#f7fbf8}
 tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:middle}
-
+ 
 /* worker cell */
 .worker-cell{display:flex;align-items:center;gap:12px}
 .worker-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.12)}
@@ -428,21 +508,21 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
 .worker-id{font-size:11.5px;color:var(--text-soft);margin-top:1px}
 .contact-email{font-size:12.5px;color:var(--text);font-weight:500}
 .contact-phone{font-size:11.5px;color:var(--text-soft);margin-top:1px}
-
+ 
 /* badges */
 .badge-area{border-radius:20px;padding:3px 11px;font-size:11.5px;font-weight:500;display:inline-block}
 .badge-activo{display:inline-flex;align-items:center;gap:5px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:3px 10px;font-size:11.5px;font-weight:500}
 .badge-inactivo{display:inline-flex;align-items:center;gap:5px;background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb;border-radius:20px;padding:3px 10px;font-size:11.5px;font-weight:500}
 .badge-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 .dot-green{background:#16a34a}.dot-gray{background:#9ca3af}
-
+ 
 /* action buttons */
 .acc-btns{display:flex;align-items:center;gap:4px}
 .acc-btn{width:30px;height:30px;border-radius:8px;background:none;border:1px solid transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;color:var(--text-soft);text-decoration:none}
 .acc-btn:hover{background:var(--bg);border-color:var(--border);color:var(--green-dark)}
 .acc-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
 .acc-btn.danger:hover{background:#fff1f2;border-color:#fecaca;color:#dc2626}
-
+ 
 /* ── PAGINATION ── */
 .pagination{padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .pag-info{font-size:12.5px;color:var(--text-soft)}
@@ -452,14 +532,14 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
 .pag-btn.active{background:var(--green);border-color:var(--green);color:#021a08;font-weight:700}
 .pag-btn.disabled{opacity:.35;pointer-events:none}
 .pag-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
-
+ 
 /* ── EMPTY STATE ── */
 .empty-state{padding:56px 20px;text-align:center}
 .empty-icon{width:56px;height:56px;background:var(--green-mist);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
 .empty-icon svg{width:26px;height:26px;stroke:var(--green-dim);fill:none;stroke-width:1.5}
 .empty-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
 .empty-sub{font-size:13px;color:var(--text-soft)}
-
+ 
 /* ── MODAL ── */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(5px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-backdrop.open{display:flex}
@@ -487,7 +567,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
 .btn-cancel:hover{background:var(--bg)}
 .btn-save{background:linear-gradient(135deg,var(--green),var(--green-dim));border:none;border-radius:10px;padding:10px 22px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#021a08;cursor:pointer;transition:all .2s;box-shadow:0 3px 14px rgba(45,223,110,0.25)}
 .btn-save:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(45,223,110,0.35)}
-
+ 
 /* ── RESPONSIVE EXTRA ── */
 @media(max-width:900px){
   .mini-stats{grid-template-columns:1fr 1fr}
@@ -500,11 +580,11 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
   thead th:nth-child(2),tbody td:nth-child(2),
   thead th:nth-child(4),tbody td:nth-child(4){display:none}
 }
-
+ 
 </style>
 </head>
 <body>
-
+ 
 <div class="modal-backdrop" id="modalNuevo">
   <div class="modal">
     <div class="modal-head">
@@ -559,7 +639,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     </form>
   </div>
 </div>
-
+ 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 <div class="layout">
 <!-- ══ SIDEBAR ══ -->
@@ -623,7 +703,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     </a>
   </div>
 </aside>
-
+ 
 <!-- ══ MAIN ══ -->
 <!-- == MAIN == -->
 <div class="main">
@@ -671,11 +751,11 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
       </div>
     </div>
   </header>
-
+ 
   <!-- CONTENT -->
 <!-- CONTENT -->
 <div class="content">
-
+ 
   <div class="page-header">
     <div class="page-header-left">
       <div class="page-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
@@ -686,8 +766,8 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
       <button class="btn-new" onclick="openModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Trabajador</button>
     </div>
   </div>
-
-
+ 
+ 
   <div class="mini-stats">
     <div class="mini-stat">
       <div class="mini-stat-icon ic-green"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
@@ -706,8 +786,8 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
       <div class="mini-stat-body"><div class="mini-stat-num nc-yellow"><?php echo $nuevos_mes?></div><div class="mini-stat-label">Nuevos este mes</div><div class="mini-stat-sub">Ingresos recientes</div></div>
     </div>
   </div>
-
-
+ 
+ 
   <form method="GET" action="">
   <div class="filters-bar">
     <div class="filter-group" style="flex:1;min-width:200px">
@@ -743,8 +823,8 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     </div>
   </div>
   </form>
-
-
+ 
+ 
   <div class="table-wrap">
     <div class="table-top">
       <span class="table-count">Mostrando <strong><?php echo count($trabajadores)?></strong> de <strong><?php echo $total_filtrado?></strong> trabajadores</span>
@@ -753,7 +833,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
         <button class="btn-icon" title="Imprimir"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
       </div>
     </div>
-
+ 
     <?php if(empty($trabajadores)): ?>
     <div class="empty-state">
       <div class="empty-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
@@ -771,27 +851,62 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
         <th><span class="sort-th">ESTADO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th>ACCIONES</th>
       </tr></thead>
-      <tbody>
+<tbody>
       <?php foreach($trabajadores as $t):
-        $id=$t['id_trabajador']??0;$nom=$t['nombres']??'';$ape=$t['apellidos']??'';$doc=$t['numero_documento']??'-';
-        $ar=$t['area']??'-';$carg=$t['cargo']??'-';$email=$t['correo_personal']??'-';
-        $tel=$t['telefono']??'';$est=(int)($t['estado']??1);
+        $id=$t['id_trabajador']??$t['id']??0;
+        $nom=$t['nombres']??'';
+        $ape=$t['apellidos']??'';
+        $doc=$t['numero_documento']??'-';
+        $email=$t['correo_personal']??'-';
+        $tel=$t['telefono']??'';
+        $est=(int)($t['estado']??1);
+        
+        $ar=$t['nombre_area']??'';
+        $carg=$t['nombre_cargo']??'-';
       ?>
       <tr>
-        <td><div class="worker-cell">
-          <div class="worker-avatar" style="background:<?php echo avColor($id)?>"><?php echo avInit($nom,$ape)?></div>
-          <div><div class="worker-name"><?php echo htmlspecialchars("$nom $ape")?></div><div class="worker-id">ID: <?php echo str_pad($id,4,'0',STR_PAD_LEFT)?></div></div>
-        </div></td>
+        <td>
+          <div class="worker-cell">
+            <div class="worker-avatar" style="background:<?php echo avColor($id)?>"><?php echo avInit($nom,$ape)?></div>
+            <div>
+              <div class="worker-name"><?php echo htmlspecialchars("$nom $ape")?></div>
+              <!-- Género dinámico sin condicionales manuales -->
+              <div class="worker-id">
+                ID: <?php echo str_pad($id, 4, '0', STR_PAD_LEFT); ?> &middot; 
+                <?php echo htmlspecialchars($t['genero_nombre'] ?? 'Masculino'); ?>
+              </div>
+            </div>
+          </div>
+        </td>
         <td><?php echo htmlspecialchars($doc)?></td>
-        <td><?php echo areaBadge($ar)?></td>
-        <td><?php echo htmlspecialchars($carg)?></td>
-        <td><div class="contact-email"><?php echo htmlspecialchars($email)?></div><?php if($tel):?><div class="contact-phone"><?php echo htmlspecialchars($tel)?></div><?php endif;?></td>
-        <td><?php if($est):?><span class="badge-activo"><span class="badge-dot dot-green"></span>Activo</span><?php else:?><span class="badge-inactivo"><span class="badge-dot dot-gray"></span>Inactivo</span><?php endif;?></td>
-        <td><div class="acc-btns">
-          <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>
-          <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></a>
-          <button class="acc-btn danger" onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars("$nom $ape")?>')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-        </div></td>
+        <td>
+          <?php 
+            if ($ar !== '') {
+                echo areaBadge($ar); 
+            } else {
+                echo '<span style="color:#9ca3af; font-size: 13px;">-</span>';
+            }
+          ?>
+        </td>
+        <td style="font-size: 13px; color: #374151;"><?php echo htmlspecialchars($carg)?></td>
+        <td>
+          <div class="contact-email"><?php echo htmlspecialchars($email)?></div>
+          <?php if($tel):?><div class="contact-phone"><?php echo htmlspecialchars($tel)?></div><?php endif;?>
+        </td>
+        <td>
+          <?php if($est):?>
+            <span class="badge-activo"><span class="badge-dot dot-green"></span>Activo</span>
+          <?php else:?>
+            <span class="badge-inactivo"><span class="badge-dot dot-gray"></span>Inactivo</span>
+          <?php endif;?>
+        </td>
+        <td>
+          <div class="acc-btns">
+            <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>
+            <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></a>
+            <button class="acc-btn danger" onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars("$nom $ape")?>')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+          </div>
+        </td>
       </tr>
       <?php endforeach;?>
       </tbody>
@@ -813,15 +928,15 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     </div>
     <?php endif;?>
   </div>
-
-
+ 
+ 
 </div><!-- /content -->
 <footer style="text-align:center;padding:12px;font-size:11.5px;color:var(--text-soft);border-top:1px solid var(--border);background:var(--white)">
   &#127807; <strong style="color:var(--green-dark)">PlastyPetco S.A.S</strong> &middot; Sistema de Gesti&#243;n RRHH + SG-SST &nbsp;&middot;&nbsp; Versi&#243;n 1.0.0
 </footer>
 </div><!-- /main -->
 </div><!-- /layout -->
-
+ 
 <script>
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebarOverlay').classList.toggle('open')}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('open')}
