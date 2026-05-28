@@ -31,7 +31,7 @@ try {
     $conexion = new PDO($dsn, $username, $password, $opciones);
     
     // Si quieres probar si funciona, descomenta la siguiente línea quitando las dos barras (//)
-    // echo "¡Conexión segura y encriptada exitosa!";
+    //  echo "¡Conexión segura y encriptada exitosa!";
     
 } catch (PDOException $e) {
     die("Error crítico de conexión: " . $e->getMessage());
