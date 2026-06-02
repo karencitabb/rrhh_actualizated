@@ -1,35 +1,25 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../../config/conexion.php';
 
-require_once '../../config/conexion.php';
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: index.php');
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+    header("Location: index.php?mensaje=id_invalido");
     exit;
 }
 
-$id_trabajador = isset($_POST['id_trabajador']) ? (int)$_POST['id_trabajador'] : 0;
-
-if ($id_trabajador <= 0) {
-    header('Location: index.php?mensaje=id_invalido');
-    exit;
-}
+$id_trabajador = (int) $_GET['id'];
 
 try {
-    $sql = "UPDATE trabajadores
-            SET estado = 0
+    $sql = "UPDATE trabajadores 
+            SET estado = 0 
             WHERE id_trabajador = :id_trabajador";
 
     $stmt = $conexion->prepare($sql);
-    $stmt->bindValue(':id_trabajador', $id_trabajador, PDO::PARAM_INT);
+    $stmt->bindParam(':id_trabajador', $id_trabajador, PDO::PARAM_INT);
     $stmt->execute();
 
-    header('Location: index.php?mensaje=inactivado');
+    header("Location: index.php?mensaje=inactivado");
     exit;
 
-} catch (Exception $e) {
-    die('Error al inactivar trabajador: ' . $e->getMessage());
+} catch (PDOException $e) {
+    die("Error al marcar el trabajador como inactivo: " . $e->getMessage());
 }
-?>

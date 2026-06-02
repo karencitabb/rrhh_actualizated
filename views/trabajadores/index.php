@@ -12,6 +12,7 @@ if (!file_exists($conexionFile)) {
     die('Error crítico: no se encontró el archivo de conexión en ' . htmlspecialchars($conexionFile));
 }
 require_once $conexionFile;
+
 // =========================
 // DATOS DEL USUARIO EN TOPBAR
 // =========================
@@ -26,7 +27,7 @@ $inicial = strtoupper(
 
 // Compatibilidad por si en otra parte usas estos nombres
 $row_nombre = $nombres;
-$row_apellidos = $apellidos;
+$row_apellidos = $apellidos; 
 
 /* =========================
    FILTROS Y PAGINACIÓN
@@ -171,114 +172,77 @@ try {
 $where = [];
 $params = [];
 
+$where = [];
+$params = [];
+
+/* ================================
+   FILTROS
+================================ */
+$buscar = trim($_GET['buscar'] ?? '');
+$area   = trim($_GET['area'] ?? '');
+
+$where = [];
+$params = [];
+
 /* BUSCADOR */
 if ($buscar !== '') {
     $where[] = "(
-        t.nombres LIKE :buscar_nombres
-        OR t.apellidos LIKE :buscar_apellidos
-        OR CONCAT(t.nombres, ' ', t.apellidos) LIKE :buscar_nombre_completo
-        OR t.numero_documento LIKE :buscar_documento
-        OR t.correo_personal LIKE :buscar_correo
-        OR t.celular LIKE :buscar_celular
+        t.nombres LIKE ?
+        OR t.apellidos LIKE ?
+        OR CONCAT(t.nombres, ' ', t.apellidos) LIKE ?
+        OR t.numero_documento LIKE ?
+        OR t.correo_personal LIKE ?
+        OR t.celular LIKE ?
     )";
 
-    $params[':buscar_nombres'] = "%{$buscar}%";
-    $params[':buscar_apellidos'] = "%{$buscar}%";
-    $params[':buscar_nombre_completo'] = "%{$buscar}%";
-    $params[':buscar_documento'] = "%{$buscar}%";
-    $params[':buscar_correo'] = "%{$buscar}%";
-    $params[':buscar_celular'] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
+    $params[] = "%{$buscar}%";
 }
 
 /* FILTRO POR ÁREA */
 if ($area !== '') {
-    $where[] = "t.id_area = :area";
-    $params[':area'] = (int)$area;
+    $where[] = "t.id_area = ?";
+    $params[] = (int)$area;
 }
 
-/* FILTRO POR ESTADO */
-/*
-   Por ahora lo dejamos preparado, pero no filtramos si tu tabla trabajadores
-   todavía no tiene una columna real de estado.
-*/
+/* ================================
+   LISTADO DE TRABAJADORES
+================================ */
+$sql = "
+    SELECT
+        t.id_trabajador,
+        t.numero_documento,
+        t.nombres,
+        t.apellidos,
+        t.correo_personal,
+        t.celular AS telefono,
+        t.fecha_ingreso,
+        t.estado,
+        t.id_generos,
+        COALESCE(a.nombre_area, 'Sin área') AS nombre_area,
+        COALESCE(c.nombre_cargo, 'Sin cargo') AS nombre_cargo
+    FROM trabajadores t
+    LEFT JOIN areas a ON t.id_area = a.id_areas
+    LEFT JOIN cargos c ON t.id_cargo = c.id_cargo
+    WHERE 1=1
+";
 
-$whereSql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
-
-try {
-
-    /* TOTAL FILTRADO */
-    $sqlCount = "
-        SELECT COUNT(*)
-        FROM trabajadores t
-        LEFT JOIN areas a ON t.id_area = a.id_areas
-        LEFT JOIN cargos c ON t.id_cargo = c.id_cargo
-        LEFT JOIN generos g ON t.id_generos = g.id_generos
-        $whereSql
-    ";
-
-    $stmtCount = $conexion->prepare($sqlCount);
-
-    foreach ($params as $key => $value) {
-        if ($key === ':area') {
-            $stmtCount->bindValue($key, $value, PDO::PARAM_INT);
-        } else {
-            $stmtCount->bindValue($key, $value, PDO::PARAM_STR);
-        }
-    }
-
-    $stmtCount->execute();
-
-    $total_filtrado = (int)$stmtCount->fetchColumn();
-    $total_paginas = max(1, ceil($total_filtrado / $por_pag));
-
-    /* LISTADO DE TRABAJADORES */
-    $sql = "
-        SELECT 
-            t.id_trabajador,
-            t.nombres,
-            t.apellidos,
-            t.numero_documento,
-            t.correo_personal,
-            t.celular AS telefono,
-            t.id_generos,
-            t.id_area,
-            t.id_cargo,
-
-            COALESCE(a.nombre_area, 'Sin área') AS nombre_area,
-            COALESCE(c.nombre_cargo, 'Sin cargo') AS nombre_cargo,
-            COALESCE(g.nombre, 'Sin definir') AS genero_nombre,
-
-           t.estado,
-
-        FROM trabajadores t
-        LEFT JOIN areas a ON t.id_area = a.id_areas
-        LEFT JOIN cargos c ON t.id_cargo = c.id_cargo
-        LEFT JOIN generos g ON t.id_generos = g.id_generos
-        $whereSql
-        ORDER BY t.id_trabajador DESC
-        LIMIT :limit OFFSET :offset
-    ";
-
-    $stmt = $conexion->prepare($sql);
-
-    foreach ($params as $key => $value) {
-        if ($key === ':area') {
-            $stmt->bindValue($key, $value, PDO::PARAM_INT);
-        } else {
-            $stmt->bindValue($key, $value, PDO::PARAM_STR);
-        }
-    }
-
-    $stmt->bindValue(':limit', $por_pag, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-
-    $stmt->execute();
-
-    $trabajadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-} catch (Exception $e) {
-    die("Error en consulta de trabajadores: " . $e->getMessage());
+if (!empty($where)) {
+    $sql .= " AND " . implode(" AND ", $where);
 }
+
+$sql .= " ORDER BY t.id_trabajador DESC";
+
+$stmt = $conexion->prepare($sql);
+$stmt->execute($params);
+$trabajadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$total_filtrado = count($trabajadores);
+// Consulta realizada con parámetros posicionales arriba.
+// Si en el futuro usamos named params, reescribimos el bind aquí.
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -579,6 +543,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 .btn-new{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,var(--green),var(--green-dim));border:none;border-radius:10px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#021a08;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 3px 14px rgba(45,223,110,0.25)}
 .btn-new:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(45,223,110,0.35)}
 .btn-new svg{width:16px;height:16px;stroke:#021a08;fill:none;stroke-width:2.5}
+
+
  
 /* ── MINI STATS ── */
 .mini-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -754,10 +720,214 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
   thead th:nth-child(4),tbody td:nth-child(4){display:none}
 }
  
+ /* ── TOAST SISTEMA ── */
+.toast-sistema {
+  position: fixed;
+  top: 86px;
+  right: 28px;
+  z-index: 99999;
+  min-width: 280px;
+  max-width: 360px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  font-family: 'DM Sans', sans-serif;
+  box-shadow: 0 18px 45px rgba(0,0,0,.16);
+  animation: toastEntrada .35s ease both;
+}
+
+.toast-sistema strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.toast-sistema span {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: .85;
+}
+
+.toast-ok {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.toast-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.toast-hide {
+  animation: toastSalida .35s ease forwards;
+}
+
+@keyframes toastEntrada {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* ── MODAL CONFIRMAR INACTIVAR ── */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(4px);
+  z-index: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.confirm-backdrop.open {
+  display: flex;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.18);
+  animation: modalIn .28s cubic-bezier(.22,1,.36,1) both;
+}
+
+.confirm-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.confirm-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #fff1f2;
+  border: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.confirm-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: #dc2626;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.confirm-card h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.confirm-card p {
+  font-size: 14px;
+  color: var(--text-mid);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.confirm-card p strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.confirm-message {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.btn-confirm-cancel,
+.btn-confirm-ok {
+  border: none;
+  border-radius: 12px;
+  padding: 11px 18px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.btn-confirm-cancel {
+  background: #f8fafc;
+  color: var(--text-mid);
+  border: 1px solid var(--border);
+}
+
+.btn-confirm-cancel:hover {
+  background: #f1f5f9;
+}
+
+.btn-confirm-ok {
+  background: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.22);
+}
+
+.btn-confirm-ok:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+.acc-btn.reactivate {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.acc-btn.reactivate:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.acc-btn.reactivate svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 </style>
 </head>
 <body>
-<div style="position:fixed;top:12px;left:12px;background:#0b1120;color:#7fffd4;z-index:99999;padding:8px 12px;border-radius:6px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.2)">INTERFAZ CARGADA</div>
+<div style="position:fixed;top:12px;left:12px;background:#0b1120;color:#7fffd4;z-index:99999;padding:8px 12px;border-radius:6px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.2)"></div>
 <?php if (isset($_GET['debug']) && $_GET['debug'] === '1') {
   echo '<div style="position:fixed;top:60px;left:12px;background:#ef4444;color:#fff;z-index:99999;padding:8px 12px;border-radius:6px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.2)">DEBUG: RENDER OK</div>';
 }
@@ -976,6 +1146,46 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     </form>
   </div>
 </div>
+<div class="confirm-backdrop" id="modalConfirmarInactivar">
+  <div class="confirm-card">
+
+    <div class="confirm-head">
+      <div class="confirm-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 6h18"/>
+          <path d="M8 6V4h8v2"/>
+          <path d="M19 6l-1 14H6L5 6"/>
+          <path d="M10 11v5"/>
+          <path d="M14 11v5"/>
+        </svg>
+      </div>
+
+      <div>
+        <h3>Marcar trabajador como inactivo</h3>
+        <p>
+          ¿Deseas marcar a 
+          <strong id="nombreTrabajadorInactivar"></strong> 
+          como inactivo?
+        </p>
+      </div>
+    </div>
+
+    <div class="confirm-message">
+      No se eliminará de la base de datos. Podrás reactivarlo cuando sea necesario.
+    </div>
+
+    <div class="confirm-actions">
+      <button type="button" class="btn-confirm-cancel" onclick="cerrarModalInactivar()">
+        Cancelar
+      </button>
+
+      <button type="button" class="btn-confirm-ok" onclick="ejecutarInactivar()">
+        Marcar inactivo
+      </button>
+    </div>
+
+  </div>
+</div>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 <div class="layout">
 <!-- ══ SIDEBAR ══ -->
@@ -1102,26 +1312,70 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
       <button class="btn-new" onclick="openModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Trabajador</button>
     </div>
   </div>
- 
- 
-  <div class="mini-stats">
+   <div class="mini-stats">
+
     <div class="mini-stat">
-      <div class="mini-stat-icon ic-green"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
-      <div class="mini-stat-body"><div class="mini-stat-num nc-green"><?php echo $tw?></div><div class="mini-stat-label">Total trabajadores</div><div class="mini-stat-sub">Activos en el sistema</div></div>
+      <div class="mini-stat-icon ic-green">
+        <svg viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+          <path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+      </div>
+      <div class="mini-stat-body">
+        <div class="mini-stat-num nc-green"><?php echo $tw?></div>
+        <div class="mini-stat-label">Total trabajadores</div>
+        <div class="mini-stat-sub">Activos en el sistema</div>
+      </div>
     </div>
+
     <div class="mini-stat">
-      <div class="mini-stat-icon ic-blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg></div>
-      <div class="mini-stat-body"><div class="mini-stat-num nc-blue"><?php echo $total_hombres?></div><div class="mini-stat-label">Hombres</div><div class="mini-stat-sub"><?php echo $tw>0?round($total_hombres/$tw*100,1):0?>% del total</div></div>
+      <div class="mini-stat-icon ic-blue">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M20 21a8 8 0 10-16 0"/>
+        </svg>
+      </div>
+      <div class="mini-stat-body">
+        <div class="mini-stat-num nc-blue"><?php echo $total_hombres?></div>
+        <div class="mini-stat-label">Hombres</div>
+        <div class="mini-stat-sub"><?php echo $tw>0?round($total_hombres/$tw*100,1):0?>% del total</div>
+      </div>
     </div>
+
     <div class="mini-stat">
-      <div class="mini-stat-icon ic-purple"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg></div>
-      <div class="mini-stat-body"><div class="mini-stat-num nc-purple"><?php echo $total_mujeres?></div><div class="mini-stat-label">Mujeres</div><div class="mini-stat-sub"><?php echo $tw>0?round($total_mujeres/$tw*100,1):0?>% del total</div></div>
+      <div class="mini-stat-icon ic-purple">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M20 21a8 8 0 10-16 0"/>
+        </svg>
+      </div>
+      <div class="mini-stat-body">
+        <div class="mini-stat-num nc-purple"><?php echo $total_mujeres?></div>
+        <div class="mini-stat-label">Mujeres</div>
+        <div class="mini-stat-sub"><?php echo $tw>0?round($total_mujeres/$tw*100,1):0?>% del total</div>
+      </div>
     </div>
+
     <div class="mini-stat">
-      <div class="mini-stat-icon ic-yellow"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div>
-      <div class="mini-stat-body"><div class="mini-stat-num nc-yellow"><?php echo $nuevos_mes?></div><div class="mini-stat-label">Nuevos este mes</div><div class="mini-stat-sub">Ingresos recientes</div></div>
+      <div class="mini-stat-icon ic-yellow">
+        <svg viewBox="0 0 24 24">
+          <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <line x1="19" y1="8" x2="19" y2="14"/>
+          <line x1="22" y1="11" x2="16" y2="11"/>
+        </svg>
+      </div>
+      <div class="mini-stat-body">
+        <div class="mini-stat-num nc-yellow"><?php echo $nuevos_mes?></div>
+        <div class="mini-stat-label">Nuevos este mes</div>
+        <div class="mini-stat-sub">Ingresos recientes</div>
+      </div>
     </div>
+
   </div>
+
  
  
 <form id="filtroLocalTrabajadores" onsubmit="return false;">
@@ -1192,8 +1446,21 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
     <div class="table-top">
       <span class="table-count">Mostrando <strong><?php echo count($trabajadores)?></strong> de <strong><?php echo $total_filtrado?></strong> trabajadores</span>
       <div class="table-actions">
-        <button class="btn-icon" title="Exportar"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
-        <button class="btn-icon" title="Imprimir"><svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>
+<a href="trabajadores_pdf.php" target="_blank" class="btn-icon" title="Generar PDF">  <svg viewBox="0 0 24 24">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+  </svg>
+</a>
+
+<a href="trabajadores_imprimir.php" target="_blank" class="btn-icon" title="Imprimir">
+  <svg viewBox="0 0 24 24">
+    <polyline points="6 9 6 2 18 2 18 9"/>
+    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
+  </svg>
+</a>
       </div>
     </div>
  
@@ -1236,20 +1503,23 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
               <!-- Género dinámico sin condicionales manuales -->
               <div class="worker-id">
                 ID: <?php echo str_pad($id, 4, '0', STR_PAD_LEFT); ?> &middot; 
+
+
 <?php
 $generoTexto = 'Sin definir';
+$idGenero = (int)($t['id_generos'] ?? 0);
 
-if ((int)$t['id_generos'] === 1) {
+if ($idGenero === 1) {
     $generoTexto = 'Femenino';
-} elseif ((int)$t['id_generos'] === 2) {
+} elseif ($idGenero === 2) {
     $generoTexto = 'Masculino';
-} elseif ((int)$t['id_generos'] === 3) {
+} elseif ($idGenero === 3) {
     $generoTexto = 'Otro';
 }
 ?>
 
 <div class="worker-id">
-    ID: <?= str_pad($t['id_trabajador'], 4, '0', STR_PAD_LEFT) ?> · <?= $generoTexto ?>
+    <?php echo htmlspecialchars($generoTexto); ?>
 </div>
               </div>
             </div>
@@ -1288,29 +1558,54 @@ if ((int)$t['id_generos'] === 1) {
 <?php endif; ?>
         </td>
         <td>
-          <div class="acc-btns">
-            <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>
-            <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></a>
-            <button class="acc-btn danger" onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars("$nom $ape")?>')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-          </div>
+  <div class="acc-btns">
+
+  <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver">
+    <svg viewBox="0 0 24 24">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  </a>
+
+  <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar">
+    <svg viewBox="0 0 24 24">
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  </a>
+
+  <?php if ($est === 1): ?>
+
+    <button type="button"
+            class="acc-btn danger"
+            title="Inactivar trabajador"
+            onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars($nom . ' ' . $ape, ENT_QUOTES, 'UTF-8')?>')">
+      <svg viewBox="0 0 24 24">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+      </svg>
+    </button>
+
+  <?php else: ?>
+
+    <a href="activar.php?id=<?php echo $id?>"
+       class="acc-btn reactivate"
+       title="Reactivar trabajador">
+      <svg viewBox="0 0 24 24">
+        <polyline points="1 4 1 10 7 10"/>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+      </svg>
+    </a>
+
+  <?php endif; ?>
+
+</div>
         </td>
       </tr>
       <?php endforeach;?>
       </tbody>
     </table>
-    <div class="pagination">
-      <span class="pag-info">Mostrando <?php echo $offset+1?> a <?php echo min($offset+$por_pag,$total_filtrado)?> de <?php echo $total_filtrado?> trabajadores</span>
-      <div class="pag-btns">
-        <?php $qs=http_build_query(['buscar'=>$buscar,'area'=>$area,'estado'=>$estado]);?>
-        <a href="<?php echo $pagina>1?'index.php?'.$qs.'&pagina='.($pagina-1):'#'?>" class="pag-btn <?php echo $pagina<=1?'disabled':''?>"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Anterior</a>
-        <?php for($p=1;$p<=$total_paginas;$p++):
-          if($total_paginas>7&&$p>2&&$p<$total_paginas-1&&abs($p-$pagina)>1){
-            if($p==3||$p==$total_paginas-2)echo '<span class="pag-btn" style="border:none;pointer-events:none">&#8230;</span>';
-            continue;
-          }?>
-        <a href="index.php?<?php echo $qs?>&pagina=<?php echo $p?>" class="pag-btn <?php echo $p==$pagina?'active':''?>"><?php echo $p?></a>
-        <?php endfor;?>
-        <a href="<?php echo $pagina<$total_paginas?'index.php?'.$qs.'&pagina='.($pagina+1):'#'?>" class="pag-btn <?php echo $pagina>=$total_paginas?'disabled':''?>">Siguiente<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></a>
       </div>
     </div>
     <?php endif;?>
@@ -1323,6 +1618,31 @@ if ((int)$t['id_generos'] === 1) {
 </footer>
 </div><!-- /main -->
 </div><!-- /layout -->
+
+<?php if (isset($_GET['mensaje'])): ?>
+
+  <?php if ($_GET['mensaje'] === 'reactivado'): ?>
+    <div class="toast-sistema toast-ok">
+      <strong>Trabajador reactivado correctamente.</strong>
+      <span>El trabajador vuelve a estar activo en el sistema.</span>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($_GET['mensaje'] === 'inactivado'): ?>
+    <div class="toast-sistema toast-warning">
+      <strong>Trabajador marcado como inactivo.</strong>
+      <span>No se eliminó de la base de datos.</span>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($_GET['mensaje'] === 'id_invalido'): ?>
+    <div class="toast-sistema toast-error">
+      <strong>ID de trabajador inválido.</strong>
+      <span>No se pudo completar la acción.</span>
+    </div>
+  <?php endif; ?>
+
+<?php endif; ?>
  
 <script>
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebarOverlay').classList.toggle('open')}
@@ -1332,9 +1652,40 @@ document.addEventListener('click',function(e){var w=document.getElementById('pro
 function openModal(){document.getElementById('modalNuevo').classList.add('open')}
 function closeModal(){document.getElementById('modalNuevo').classList.remove('open')}
 document.getElementById('modalNuevo').addEventListener('click',function(e){if(e.target===this)closeModal()});
-function confirmarEliminar(id,nombre){if(confirm('Eliminar a '+nombre+'?\nEsta accion no se puede deshacer.'))window.location.href='eliminar.php?id='+id;}
+let trabajadorInactivarId = null;
+
+function confirmarEliminar(id, nombre) {
+    trabajadorInactivarId = id;
+
+    const nombreSpan = document.getElementById('nombreTrabajadorInactivar');
+    const modal = document.getElementById('modalConfirmarInactivar');
+
+    if (nombreSpan) {
+        nombreSpan.textContent = nombre;
+    }
+
+    if (modal) {
+        modal.classList.add('open');
+    }
+}
+
+function cerrarModalInactivar() {
+    trabajadorInactivarId = null;
+
+    const modal = document.getElementById('modalConfirmarInactivar');
+    if (modal) {
+        modal.classList.remove('open');
+    }
+}
+
+function ejecutarInactivar() {
+    if (trabajadorInactivarId !== null) {
+        window.location.href = 'inactivar.php?id=' + trabajadorInactivarId;
+    }
+}
 document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.querySelector('.search-wrap input').focus()}});
 </script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const inputBuscar = document.getElementById('buscarLocalTrabajador');
@@ -1411,13 +1762,41 @@ document.addEventListener('DOMContentLoaded', function () {
     selectEstado.addEventListener('change', filtrarTrabajadores);
     btnFiltrar.addEventListener('click', filtrarTrabajadores);
 
-    btnLimpiar.addEventListener('click', function () {
+    btnLimpiar.addEventListener('click', function () 
         inputBuscar.value = '';
         selectArea.value = '';
         selectEstado.value = '';
         filtrarTrabajadores();
-    });
 });
+</script>
+
+<script>
+setTimeout(function () {
+    var toast = document.querySelector('.toast-sistema');
+
+    if (!toast) {
+        return;
+    }
+
+    toast.style.transition = 'opacity .45s ease, transform .45s ease';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-10px)';
+
+    setTimeout(function () {
+        toast.remove();
+
+        var url = new URL(window.location.href);
+        if (url.searchParams.has('mensaje')) {
+            url.searchParams.delete('mensaje');
+            window.history.replaceState({}, document.title, url.pathname + url.search);
+        }
+    }, 500);
+
+}, 5000);
+</script>
+
+</body>
+</html>
 </script>
 </body>
 </html>

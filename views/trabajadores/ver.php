@@ -116,7 +116,7 @@ $tipoDocumento = obtenerCatalogo(
     $conexion,
     'tipos_documentos',
     'id_tipos_documentos',
-    ['nombre_tipo_documento', 'tipo_documento', 'nombre_documento', 'nombre', 'descripcion'],
+    ['tipo_de_documento', 'nombre_tipo_documento', 'tipo_documento', 'nombre_documento', 'nombre', 'descripcion'],
     $trabajador['id_tipos_documentos'] ?? null
 );
 
