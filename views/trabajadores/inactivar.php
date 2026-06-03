@@ -22,4 +22,4 @@ try {
 
 } catch (PDOException $e) {
     die("Error al marcar el trabajador como inactivo: " . $e->getMessage());
-}
+}   

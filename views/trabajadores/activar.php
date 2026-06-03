@@ -22,4 +22,4 @@ try {
 
 } catch (PDOException $e) {
     die("Error al reactivar trabajador: " . $e->getMessage());
-}
+}   
