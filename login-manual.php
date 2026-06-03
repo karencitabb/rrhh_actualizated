@@ -1,79 +1,88 @@
 <?php
-// Iniciamos el sistema de sesiones de PHP
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Traemos nuestra conexión segura
-require_once 'config/conexion.php';
+require_once __DIR__ . '/config/conexion.php';
 
-// Verificamos que los datos vengan del formulario (método POST)
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
-    // Capturamos lo que escribió el usuario en el diseño
-    $usuario_input = $_POST['usuario'];
-    $contrasena_input = $_POST['contrasena'];
-
-    // ── RECORDARME: leemos si el checkbox viene marcado ──
-    $remember = isset($_POST['remember']);
-
-    try {
-        // Preparamos la consulta inteligente con DOS variables seguras (:input1 e :input2)
-        $sql = "SELECT u.id_usuario, u.usuario, u.contrasena, u.id_roles, t.nombres, t.apellidos, t.correo_personal 
-                FROM usuarios u
-                INNER JOIN trabajadores t ON u.id_trabajador = t.id_trabajador
-                WHERE u.usuario = :input1 OR t.correo_personal = :input2 
-                LIMIT 1";
-        
-        $stmt = $conexion->prepare($sql);
-        
-        // Vinculamos las variables de forma segura
-        $stmt->bindParam(':input1', $usuario_input, PDO::PARAM_STR);
-        $stmt->bindParam(':input2', $usuario_input, PDO::PARAM_STR);
-        $stmt->execute();
-        
-        $usuario = $stmt->fetch();
-
-        // Verificamos si encontramos a alguien y si la contraseña coincide
-        if ($usuario && $usuario['contrasena'] === $contrasena_input) {
-            
-            // Regeneramos el ID de sesión por seguridad
-            session_regenerate_id(true);
-
-            // Guardamos los datos importantes en la sesión
-            $_SESSION['id_usuario'] = $usuario['id_usuario'];
-            $_SESSION['nombres']    = $usuario['nombres'];
-            $_SESSION['apellidos']  = $usuario['apellidos'];
-            $_SESSION['id_roles']   = $usuario['id_roles'];
-            $_SESSION['logueado']   = true;
-
-            // ── RECORDARME: guardar o borrar cookie según el checkbox ──
-            if ($remember) {
-                // Guardamos el usuario en una cookie por 30 días
-                $expiry = time() + (30 * 24 * 60 * 60);
-                setcookie('plastypetco_usuario', $usuario_input, $expiry, '/', '', false, true);
-                // false = no requiere HTTPS (cámbialo a true cuando tengas SSL)
-                // true  = httpOnly (JavaScript no puede leerla, más seguro)
-            } else {
-                // Si no marcó recordarme, eliminamos la cookie si existía
-                setcookie('plastypetco_usuario', '', time() - 3600, '/');
-            }
-
-            // ¡Aprobado! Redirigimos al Dashboard
-            header("Location: views/dashboard/dashboard.php");
-            exit();
-            
-        } else {
-            // Credenciales incorrectas: lo devolvemos al index con un aviso de error
-            header("Location: index.php?error=1");
-            exit();
-        }
-
-    } catch (PDOException $e) {
-        // Si la base de datos falla, detenemos todo y mostramos por qué
-        die("Error crítico en la autenticación: " . $e->getMessage());
-    }
-} else {
-    // Si alguien intenta entrar a este archivo directamente, lo echamos al login
-    header("Location: index.php");
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: index.php');
     exit();
 }
-?>
+
+$usuario = trim($_POST['usuario'] ?? '');
+$contrasena = $_POST['contrasena'] ?? $_POST['password'] ?? '';
+
+if ($usuario === '' || $contrasena === '') {
+    $_SESSION['login_error'] = 'Debes ingresar usuario y contraseña.';
+    header('Location: index.php');
+    exit();
+}
+
+try {
+    $sql = "SELECT 
+                id_usuario,
+                usuario,
+                contrasena,
+                id_roles,
+                id_trabajador
+            FROM usuarios
+            WHERE usuario = :usuario
+            LIMIT 1";
+
+    $stmt = $conexion->prepare($sql);
+    $stmt->execute([
+        ':usuario' => $usuario
+    ]);
+
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        $_SESSION['login_error'] = 'Usuario o contraseña incorrectos.';
+        header('Location: index.php');
+        exit();
+    }
+
+    $hashGuardado = $user['contrasena'];
+
+    $passwordCorrecta = password_verify($contrasena, $hashGuardado);
+
+    // Respaldo por si en algún momento guardaste contraseña sin encriptar
+    if (!$passwordCorrecta && hash_equals($hashGuardado, $contrasena)) {
+        $passwordCorrecta = true;
+    }
+
+    if (!$passwordCorrecta) {
+        $_SESSION['login_error'] = 'Usuario o contraseña incorrectos.';
+        header('Location: index.php');
+        exit();
+    }
+
+    $_SESSION['logueado'] = true;
+    $_SESSION['id_usuario'] = $user['id_usuario'];
+    $_SESSION['usuario'] = $user['usuario'];
+    $_SESSION['id_roles'] = $user['id_roles'];
+    $_SESSION['id_trabajador'] = $user['id_trabajador'];
+
+    // Datos para el topbar del dashboard
+    $_SESSION['nombres'] = 'Paola Andrea';
+    $_SESSION['nombre'] = 'Paola Andrea';
+    $_SESSION['apellidos'] = 'Franco';
+
+    $_SESSION['rol_nombre'] = match ((int)$user['id_roles']) {
+        1 => 'Administrador',
+        2 => 'Recursos Humanos',
+        3 => 'SST',
+        default => 'RRHH'
+    };
+
+    $_SESSION['rol'] = $_SESSION['rol_nombre'];
+
+    header('Location: views/dashboard/dashboard.php');
+    exit();
+
+} catch (PDOException $e) {
+    $_SESSION['login_error'] = 'Error en el inicio de sesión: ' . $e->getMessage();
+    header('Location: index.php');
+    exit();
+}
