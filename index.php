@@ -298,7 +298,7 @@ body{
 }
 
 /* corner glow inside card */
-.card::before{
+.card::before{    
   content:'';
   position:absolute;
   top:-60px;right:-60px;

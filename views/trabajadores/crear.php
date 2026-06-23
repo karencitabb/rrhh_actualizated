@@ -1,6 +1,5 @@
 <?php
 session_start();
-
 $conexionFile = __DIR__ . '/../../config/conexion.php';
 if (!file_exists($conexionFile)) {
     die('Error crítico: no se encontró el archivo de conexión en ' . htmlspecialchars($conexionFile));
@@ -8,9 +7,7 @@ if (!file_exists($conexionFile)) {
 require_once $conexionFile;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
     try {
-
         // =========================
         // DATOS PERSONALES
         // =========================
@@ -19,25 +16,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ape = $_POST['apellidos'] ?? 'Sin apellido';
         $fec = $_POST['fecha_nacimiento'] ?? '1990-01-01';
         $lug = $_POST['lugar_nacimiento'] ?? '';
-
+        
         // TIPO DE DOCUMENTO
         $id_tipo_documento = (int)($_POST['id_tipos_documentos'] ?? 1);
-
         // GÉNERO
         $gen = (int)($_POST['id_generos'] ?? 1);
-
+        
         // =========================
         // ÁREA Y CARGO
         // =========================
         $id_area = (int)($_POST['id_area'] ?? 0);
         $id_cargo = (int)($_POST['id_cargo'] ?? 0);
-
+        
         // =========================
         // CONTACTO
         // =========================
         $correo = $_POST['correo_personal'] ?? '';
         $telefono = $_POST['telefono'] ?? '';
-
+        
         // =========================
         // CAMPOS COMPLEMENTARIOS
         // =========================
@@ -46,55 +42,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id_sangre = (int)($_POST['id_sangre'] ?? 1);
         $id_estado_civil = (int)($_POST['id_estado_civil'] ?? 1);
         $id_grupo_etnico = (int)($_POST['id_grupos_etnicos'] ?? 1);
-
+        
         // =========================
         // EPS
         // =========================
         $id_eps = (int)($_POST['id_eps'] ?? 1);
-
+        
+        // =========================
+        // DATOS FAMILIARES BÁSICOS
+        // =========================
+        $tiene_hijos = (int)($_POST['tiene_hijos'] ?? 0);
+        $numero_hijos = $tiene_hijos === 1 ? (int)($_POST['numero_hijos'] ?? 0) : 0;
+        $tiene_personas_cargo = (int)($_POST['tiene_personas_cargo'] ?? 0);
+        $observaciones_familiares = trim($_POST['observaciones_familiares'] ?? '');
+        
+        // =========================
+        // NUEVO CAMPO: ORIENTACIÓN SEXUAL
+        // =========================
+        $orientacion_sexual = trim($_POST['orientacion_sexual'] ?? '');
+        
         // =========================
         // INSERTAR TRABAJADOR
         // =========================
         $sql = "INSERT INTO trabajadores (
-                    id_tipos_documentos,
-                    numero_documento,
-                    nombres,
-                    apellidos,
-                    fecha_nacimiento,
-                    lugar_nacimiento,
-                    correo_personal,
-                    celular,
-                    id_generos,
-                    id_area,
-                    id_cargo,
-                    id_formacion_educativa,
-                    id_nacionalidad,
-                    id_sangre,
-                    id_estado_civil,
-                    id_eps,
-                    id_grupos_etnicos
-                ) VALUES (
-                    :tipo_documento,
-                    :num,
-                    :nom,
-                    :ape,
-                    :fec,
-                    :lug,
-                    :correo,
-                    :telefono,
-                    :gen,
-                    :area,
-                    :cargo,
-                    :formacion,
-                    :nacionalidad,
-                    :sangre,
-                    :estado_civil,
-                    :eps,
-                    :grupo
-                )";
-
+            id_tipos_documentos,
+            numero_documento,
+            nombres,
+            apellidos,
+            fecha_nacimiento,
+            lugar_nacimiento,
+            correo_personal,
+            celular,
+            id_generos,
+            id_area,
+            id_cargo,
+            id_formacion_educativa,
+            id_nacionalidad,
+            id_sangre,
+            id_estado_civil,
+            id_eps,
+            id_grupos_etnicos,
+            tiene_hijos,
+            numero_hijos,
+            tiene_personas_cargo,
+            observaciones_familiares,
+            orientacion_sexual
+        ) VALUES (
+            :tipo_documento,
+            :num,
+            :nom,
+            :ape,
+            :fec,
+            :lug,
+            :correo,
+            :telefono,
+            :gen,
+            :area,
+            :cargo,
+            :formacion,
+            :nacionalidad,
+            :sangre,
+            :estado_civil,
+            :eps,
+            :grupo,
+            :tiene_hijos,
+            :numero_hijos,
+            :tiene_personas_cargo,
+            :observaciones_familiares,
+            :orientacion_sexual
+        )";
+        
         $stmt = $conexion->prepare($sql);
-
         $stmt->execute([
             ':tipo_documento' => $id_tipo_documento,
             ':num' => $num,
@@ -112,22 +130,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':sangre' => $id_sangre,
             ':estado_civil' => $id_estado_civil,
             ':eps' => $id_eps,
-            ':grupo' => $id_grupo_etnico
+            ':grupo' => $id_grupo_etnico,
+            ':tiene_hijos' => $tiene_hijos,
+            ':numero_hijos' => $numero_hijos,
+            ':tiene_personas_cargo' => $tiene_personas_cargo,
+            ':observaciones_familiares' => $observaciones_familiares,
+            ':orientacion_sexual' => $orientacion_sexual
         ]);
-
+        
         header("Location: index.php?mensaje=exito");
         exit();
-
     } catch (Exception $e) {
-
         die("Error al guardar: " . $e->getMessage());
-
     }
-
 } else {
-
     header("Location: index.php");
     exit();
-
 }
 ?>

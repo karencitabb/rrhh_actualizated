@@ -213,26 +213,28 @@ if ($area !== '') {
    LISTADO DE TRABAJADORES
 ================================ */
 $sql = "
-    SELECT
-        t.id_trabajador,
-        t.numero_documento,
-        t.nombres,
-        t.apellidos,
-        t.correo_personal,
-        t.celular AS telefono,
-        t.fecha_ingreso,
-        t.estado,
-        t.id_generos,
-        COALESCE(a.nombre_area, 'Sin área') AS nombre_area,
-        COALESCE(c.nombre_cargo, 'Sin cargo') AS nombre_cargo
-    FROM trabajadores t
-    LEFT JOIN areas a ON t.id_area = a.id_areas
-    LEFT JOIN cargos c ON t.id_cargo = c.id_cargo
-    WHERE 1=1
+SELECT
+    t.id_trabajador,
+    t.numero_documento,
+    t.nombres,
+    t.apellidos,
+    t.correo_personal,
+    t.celular AS telefono,
+    t.fecha_ingreso,
+    t.estado,
+    t.id_generos,
+    t.tiene_hijos,
+    t.numero_hijos,
+    COALESCE(a.nombre_area, 'Sin área') AS nombre_area,
+    COALESCE(c.nombre_cargo, 'Sin cargo') AS nombre_cargo
+FROM trabajadores t
+LEFT JOIN areas a ON t.id_area = a.id_areas
+LEFT JOIN cargos c ON t.id_cargo = c.id_cargo
+WHERE 1=1
 ";
 
 if (!empty($where)) {
-    $sql .= " AND " . implode(" AND ", $where);
+  $sql .= " AND " . implode(" AND ", $where);
 }
 
 $sql .= " ORDER BY t.id_trabajador DESC";
@@ -927,7 +929,6 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
 </style>
 </head>
 <body>
-<div style="position:fixed;top:12px;left:12px;background:#0b1120;color:#7fffd4;z-index:99999;padding:8px 12px;border-radius:6px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.2)"></div>
 <?php if (isset($_GET['debug']) && $_GET['debug'] === '1') {
   echo '<div style="position:fixed;top:60px;left:12px;background:#ef4444;color:#fff;z-index:99999;padding:8px 12px;border-radius:6px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,0.2)">DEBUG: RENDER OK</div>';
 }
@@ -1021,122 +1022,90 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
           </div>
         </div>
 
-        <div class="form-section" style="margin-top:6px">Información complementaria</div>
+<div class="form-section" style="margin-top:6px">Información complementaria</div>
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Formación educativa</label>
+        <select class="form-select" name="id_formacion_educativa">
+            <option value="1">Primaria</option>
+            <option value="2">Bachiller</option>
+            <option value="3">Técnico</option>
+            <option value="4">Tecnólogo</option>
+            <option value="5">Profesional</option>
+            <option value="6">Posgrado</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Tipo de sangre</label>
+        <select class="form-select" name="id_sangre">
+            <option value="1">O+</option>
+            <option value="2">O-</option>
+            <option value="3">A+</option>
+            <option value="4">A-</option>
+            <option value="5">B+</option>
+            <option value="6">B-</option>
+            <option value="7">AB+</option>
+            <option value="8">AB-</option>
+        </select>
+    </div>
+</div>
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Estado civil</label>
+        <select class="form-select" name="id_estado_civil">
+            <option value="1">Soltero(a)</option>
+            <option value="2">Casado(a)</option>
+            <option value="3">Unión libre</option>
+            <option value="4">Divorciado(a)</option>
+            <option value="5">Viudo(a)</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Grupo étnico</label>
+        <select class="form-select" name="id_grupos_etnicos">
+            <option value="1">No aplica</option>
+            <option value="2">Indígena</option>
+            <option value="3">Afrocolombiano</option>
+            <option value="4">Raizal</option>
+            <option value="5">Palenquero</option>
+            <option value="6">ROM / Gitano</option>
+        </select>
+    </div>
+</div>
+<!-- NUEVO CAMPO: ORIENTACIÓN SEXUAL -->
+<!-- NUEVO CAMPO: ORIENTACIÓN SEXUAL -->
+<div class="form-row">
+<div class="form-group full">
+<label class="form-label">Orientación sexual / Identidad de género</label>
+<select class="form-select" name="orientacion_sexual">
+<option value="">Seleccionar (opcional)</option>
+<option value="heterosexual">Heterosexual</option>
+<option value="homosexual">Homosexual</option>
+<option value="bisexual">Bisexual</option>
+<option value="pansexual">Pansexual</option>
+<option value="asexual">Asexual</option>
+<option value="otra">Otra</option>
+<option value="no_especificar">Prefiero no especificar</option>
+</select>
+</div>
+</div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Formación educativa</label>
-            <select class="form-select" name="id_formacion_educativa">
-              <option value="1">Primaria</option>
-              <option value="2">Bachiller</option>
-              <option value="3">Técnico</option>
-              <option value="4">Tecnólogo</option>
-              <option value="5">Profesional</option>
-              <option value="6">Posgrado</option>
-            </select>
-          </div>
+<div class="form-section" style="margin-top:6px">Información familiar</div>
+<div class="form-row">
+  <div class="form-group">
+    <label class="form-label">¿Tiene hijos?</label>
+    <select class="form-select" name="tiene_hijos" id="tieneHijos" onchange="toggleNumeroHijos()">
+      <option value="0">No</option>
+      <option value="1">Sí</option>
+    </select>
+  </div>
+  <div class="form-group" id="grupoNumeroHijos" style="display:none">
+    <label class="form-label">Número de hijos</label>
+    <input class="form-input" type="number" name="numero_hijos" id="numeroHijos" min="0" max="20" placeholder="0">
+  </div>
+</div>
 
-          <div class="form-group">
-            <label class="form-label">Tipo de sangre</label>
-            <select class="form-select" name="id_sangre">
-              <option value="1">O+</option>
-              <option value="2">O-</option>
-              <option value="3">A+</option>
-              <option value="4">A-</option>
-              <option value="5">B+</option>
-              <option value="6">B-</option>
-              <option value="7">AB+</option>
-              <option value="8">AB-</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Estado civil</label>
-            <select class="form-select" name="id_estado_civil">
-              <option value="1">Soltero(a)</option>
-              <option value="2">Casado(a)</option>
-              <option value="3">Unión libre</option>
-              <option value="4">Divorciado(a)</option>
-              <option value="5">Viudo(a)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Grupo étnico</label>
-            <select class="form-select" name="id_grupos_etnicos">
-              <option value="1">No aplica</option>
-              <option value="2">Indígena</option>
-              <option value="3">Afrocolombiano</option>
-              <option value="4">Raizal</option>
-              <option value="5">Palenquero</option>
-              <option value="6">ROM / Gitano</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-section" style="margin-top:6px">Contacto y datos laborales</div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Correo electrónico</label>
-            <input class="form-input" type="email" name="correo_personal" placeholder="correo@empresa.com">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Teléfono</label>
-            <input class="form-input" type="tel" name="telefono" placeholder="300 000 0000">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Área</label>
-            <select class="form-select" name="id_area">
-              <option value="">Seleccionar...</option>
-              <option value="1">Producción</option>
-              <option value="2">Administrativa</option>
-              <option value="3">Logística</option>
-              <option value="4">Mantenimiento</option>
-              <option value="5">SST</option>
-              <option value="6">Gestión Humana</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Cargo</label>
-            <select class="form-select" name="id_cargo">
-              <option value="">Seleccionar...</option>
-              <option value="1">Operario de Planta</option>
-              <option value="2">Supervisor de Turno</option>
-              <option value="3">Jefe de Área</option>
-              <option value="4">Auxiliar Administrativo</option>
-              <option value="5">Técnico de Mantenimiento</option>
-              <option value="6">Practicante</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Fecha de ingreso</label>
-            <input class="form-input" type="date" name="fecha_ingreso">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">EPS</label>
-            <select class="form-select" name="id_eps">
-              <option value="1">Nueva EPS</option>
-              <option value="2">Sanitas</option>
-              <option value="3">Sura</option>
-              <option value="4">Compensar</option>
-              <option value="5">Famisanar</option>
-            </select>
-          </div>
-        </div>
-
-      </div>
+      </div>  
 
       <div class="modal-foot">
         <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
@@ -1476,6 +1445,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
         <th><span class="sort-th">TRABAJADOR <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th><span class="sort-th">DOCUMENTO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th><span class="sort-th">&#193;REA <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+        <th><span class="sort-th">HIJOS <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th><span class="sort-th">CARGO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th><span class="sort-th">CORREO / CONTACTO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th><span class="sort-th">ESTADO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
@@ -1500,39 +1470,44 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
             <div class="worker-avatar" style="background:<?php echo avColor($id)?>"><?php echo avInit($nom,$ape)?></div>
             <div>
               <div class="worker-name"><?php echo htmlspecialchars("$nom $ape")?></div>
-              <!-- Género dinámico sin condicionales manuales -->
               <div class="worker-id">
-                ID: <?php echo str_pad($id, 4, '0', STR_PAD_LEFT); ?> &middot; 
-
-
-<?php
-$generoTexto = 'Sin definir';
-$idGenero = (int)($t['id_generos'] ?? 0);
-
-if ($idGenero === 1) {
-    $generoTexto = 'Femenino';
-} elseif ($idGenero === 2) {
-    $generoTexto = 'Masculino';
-} elseif ($idGenero === 3) {
-    $generoTexto = 'Otro';
-}
-?>
-
-<div class="worker-id">
-    <?php echo htmlspecialchars($generoTexto); ?>
-</div>
+                <?php echo 'ID: ' . str_pad($id, 4, '0', STR_PAD_LEFT) . ' · ' . htmlspecialchars(generoNombre($t['id_generos'] ?? 0)); ?>
               </div>
             </div>
           </div>
-        </td> 
+        </td>
         <td><?php echo htmlspecialchars($doc)?></td>
         <td>
-          <?php 
-            if ($ar !== '') {
-                echo areaBadge($ar); 
-            } else {
-                echo '<span style="color:#9ca3af; font-size: 13px;">-</span>';
-            }
+          <?php
+          if ($ar !== '') {
+              echo areaBadge($ar);
+          } else {
+              echo '<span style="color:#9ca3af; font-size: 13px;">-</span>';
+          }
+          ?>
+        </td>
+        <td>
+          <?php
+          $tieneHijos = (int)($t['tiene_hijos'] ?? 0);
+          $numHijos = (int)($t['numero_hijos'] ?? 0);
+
+          if ($tieneHijos === 1) {
+              echo '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px;font-weight:700;">';
+              echo '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">';
+              echo '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>';
+              echo '<circle cx="9" cy="7" r="4"/>';
+              echo '<path d="M23 21v-2a4 4 0 00-3-3.87"/>';
+              echo '<path d="M16 3.13a4 4 0 010 7.75"/>';
+              echo '</svg>';
+              if ($numHijos > 0) {
+                  echo $numHijos . ' ' . ($numHijos === 1 ? 'hijo' : 'hijos');
+              } else {
+                  echo 'Sí';
+              }
+              echo '</span>';
+          } else {
+              echo '<span style="color:#9ca3af;font-size:13px;">Sin hijos</span>';
+          }
           ?>
         </td>
         <td style="font-size: 13px; color: #374151;"><?php echo htmlspecialchars($carg)?></td>
@@ -1541,24 +1516,21 @@ if ($idGenero === 1) {
           <?php if($tel):?><div class="contact-phone"><?php echo htmlspecialchars($tel)?></div><?php endif;?>
         </td>
         <td>
-<?php 
-  $est = (int)($t['estado'] ?? 1);
-?>
-
-<?php if ($est === 1): ?>
-  <span class="badge-activo">
-    <span class="badge-dot dot-green"></span>
-    Activo
-  </span>
-<?php else: ?>
-  <span class="badge-inactivo">
-    <span class="badge-dot dot-red"></span>
-    Inactivo
-  </span>
-<?php endif; ?>
+          <?php $est = (int)($t['estado'] ?? 1); ?>
+          <?php if ($est === 1): ?>
+            <span class="badge-activo">
+              <span class="badge-dot dot-green"></span>
+              Activo
+            </span>
+          <?php else: ?>
+            <span class="badge-inactivo">
+              <span class="badge-dot dot-red"></span>
+              Inactivo
+            </span>
+          <?php endif; ?>
         </td>
         <td>
-  <div class="acc-btns">
+          <div class="acc-btns">
 
   <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver">
     <svg viewBox="0 0 24 24">
@@ -1647,6 +1619,11 @@ if ($idGenero === 1) {
 <script>
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebarOverlay').classList.toggle('open')}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('open')}
+document.querySelectorAll('.sidebar .nav-item, .sidebar .nav-logout').forEach(function(link){
+  link.addEventListener('click', function(){
+    closeSidebar();
+  });
+});
 function toggleProfile(){document.getElementById('profileWrap').classList.toggle('open')}
 document.addEventListener('click',function(e){var w=document.getElementById('profileWrap');if(w&&!w.contains(e.target))w.classList.remove('open')});
 function openModal(){document.getElementById('modalNuevo').classList.add('open')}
@@ -1762,15 +1739,32 @@ document.addEventListener('DOMContentLoaded', function () {
     selectEstado.addEventListener('change', filtrarTrabajadores);
     btnFiltrar.addEventListener('click', filtrarTrabajadores);
 
-    btnLimpiar.addEventListener('click', function () 
-        inputBuscar.value = '';
-        selectArea.value = '';
-        selectEstado.value = '';
-        filtrarTrabajadores();
+btnLimpiar.addEventListener('click', function () {
+    inputBuscar.value = '';
+    selectArea.value = '';
+    selectEstado.value = '';
+    filtrarTrabajadores();
+});
 });
 </script>
 
-<script>
+
+  <script>
+function toggleNumeroHijos() {
+    const tieneHijos = document.getElementById('tieneHijos');
+    const grupoNumeroHijos = document.getElementById('grupoNumeroHijos');
+    const numeroHijos = document.getElementById('numeroHijos');
+    if (tieneHijos && grupoNumeroHijos && numeroHijos) {
+        if (tieneHijos.value === '1') {
+            grupoNumeroHijos.style.display = 'flex';
+            numeroHijos.required = true;
+        } else {
+            grupoNumeroHijos.style.display = 'none';
+            numeroHijos.value = '';
+            numeroHijos.required = false;
+        }
+    }
+}
 setTimeout(function () {
     var toast = document.querySelector('.toast-sistema');
 
@@ -1793,10 +1787,6 @@ setTimeout(function () {
     }, 500);
 
 }, 5000);
-</script>
-
-</body>
-</html>
 </script>
 </body>
 </html>

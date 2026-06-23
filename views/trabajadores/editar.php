@@ -712,6 +712,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
               <input class="edit-input" type="text" name="lugar_nacimiento" value="<?php echo e($trabajador['lugar_nacimiento'] ?? ''); ?>" placeholder="Ej. Tunja, Boyacá">
             </div>
 
+
             <div class="edit-field">
               <label class="edit-label">Nacionalidad</label>
               <select class="edit-select" name="id_nacionalidad">
@@ -757,22 +758,78 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
               </select>
             </div>
 
-            <div class="edit-field">
-              <label class="edit-label">Grupo étnico</label>
-              <select class="edit-select" name="id_grupos_etnicos">
-                <?php foreach ($gruposEtnicos as $op): ?>
-                  <option value="<?php echo (int)$op['id']; ?>" <?php echo selectedOpt($trabajador['id_grupos_etnicos'] ?? '', $op['id']); ?>><?php echo e($op['nombre']); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          </div>
-        </section>
+<div class="edit-field">
+<label class="edit-label">Grupo étnico</label>
+<select class="edit-select" name="id_grupos_etnicos">
+<?php foreach ($gruposEtnicos as $op): ?>
+<option value="<?php echo (int)$op['id']; ?>" <?php echo selectedOpt($trabajador['id_grupos_etnicos'] ?? '', $op['id']); ?>><?php echo e($op['nombre']); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="edit-field full">
+<label class="edit-label">Orientación sexual / Identidad de género</label>
+<select class="edit-select" name="orientacion_sexual">
+<option value="">Seleccionar (opcional)</option>
+<option value="heterosexual" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'heterosexual'); ?>>Heterosexual</option>
+<option value="homosexual" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'homosexual'); ?>>Homosexual</option>
+<option value="bisexual" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'bisexual'); ?>>Bisexual</option>
+<option value="pansexual" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'pansexual'); ?>>Pansexual</option>
+<option value="asexual" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'asexual'); ?>>Asexual</option>
+<option value="otra" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'otra'); ?>>Otra</option>
+<option value="no_especificar" <?php echo selectedOpt($trabajador['orientacion_sexual'] ?? '', 'no_especificar'); ?>>Prefiero no especificar</option>
+</select>
+</div>
+</div>
+</section>
 
-        <section class="edit-section">
-          <div class="edit-section-head">
-            <div class="edit-section-title">Contacto y datos laborales</div>
-            <div class="edit-section-tag">RRHH</div>
-          </div>
+<section class="edit-section">
+<div class="edit-section-head">
+<div class="edit-section-title">Información familiar</div>
+<div class="edit-section-tag">Familia</div>
+</div>
+<div class="edit-form-grid">
+<div class="edit-field">
+<label class="edit-label">¿Tiene hijos?</label>
+<select class="edit-select" name="tiene_hijos" id="tieneHijos" onchange="toggleNumeroHijos()">
+<option value="0" <?php echo selectedOpt($trabajador['tiene_hijos'] ?? '0', '0'); ?>>No</option>
+<option value="1" <?php echo selectedOpt($trabajador['tiene_hijos'] ?? '0', '1'); ?>>Sí</option>
+</select>
+</div>
+<div class="edit-field" id="grupoNumeroHijos" style="display:<?php echo ($trabajador['tiene_hijos'] ?? '0') === '1' ? 'flex' : 'none'; ?>">
+<label class="edit-label">Número de hijos</label>
+<input class="edit-input" type="number" name="numero_hijos" id="numeroHijos" min="0" max="20" value="<?php echo e($trabajador['numero_hijos'] ?? ''); ?>" placeholder="0">
+</div>
+<div class="edit-field">
+<label class="edit-label">¿Tiene personas a cargo?</label>
+<select class="edit-select" name="tiene_personas_cargo">
+<option value="0" <?php echo selectedOpt($trabajador['tiene_personas_cargo'] ?? '0', '0'); ?>>No</option>
+<option value="1" <?php echo selectedOpt($trabajador['tiene_personas_cargo'] ?? '0', '1'); ?>>Sí</option>
+</select>
+</div>
+<div class="edit-field full">
+<label class="edit-label">Observaciones familiares</label>
+<textarea class="edit-input" name="observaciones_familiares" rows="3" placeholder="Información adicional sobre familiares..." style="height:auto;padding:10px 13px;resize:vertical"><?php echo e($trabajador['observaciones_familiares'] ?? ''); ?></textarea>
+</div>
+<div class="edit-field full">
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+<svg viewBox="0 0 24 24" style="width:20px;height:20px;stroke:#16a34a;fill:none;stroke-width:1.8;flex-shrink:0;margin-top:2px">
+<circle cx="12" cy="12" r="10"/>
+<line x1="12" y1="16" x2="12" y2="12"/>
+<line x1="12" y1="8" x2="12.01" y2="8"/>
+</svg>
+<div style="font-size:13px;color:#166534;line-height:1.5">
+Los detalles de familiares (hijos, cónyuge, padres u otros dependientes) podrán registrarlos después desde la ficha del trabajador.
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="edit-section">
+<div class="edit-section-head">
+<div class="edit-section-title">Contacto y datos laborales</div>
+<div class="edit-section-tag">RRHH</div>
+</div>
 
           <div class="edit-form-grid">
             <div class="edit-field">
@@ -846,21 +903,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 
 <script>
 function toggleSidebar(){
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('open');
+document.getElementById('sidebar').classList.toggle('open');
+document.getElementById('sidebarOverlay').classList.toggle('open');
 }
 function closeSidebar(){
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('open');
+document.getElementById('sidebar').classList.remove('open');
+document.getElementById('sidebarOverlay').classList.remove('open');
 }
 function toggleProfile(){
-  document.getElementById('profileWrap').classList.toggle('open');
+document.getElementById('profileWrap').classList.toggle('open');
 }
 document.addEventListener('click',function(e){
-  var w=document.getElementById('profileWrap');
-  if(w && !w.contains(e.target)) w.classList.remove('open');
+var w=document.getElementById('profileWrap');
+if(w && !w.contains(e.target)) w.classList.remove('open');
 });
-</script>
 
+function toggleNumeroHijos() {
+    const tieneHijos = document.getElementById('tieneHijos');
+    const grupoNumeroHijos = document.getElementById('grupoNumeroHijos');
+    const numeroHijos = document.getElementById('numeroHijos');
+    if (tieneHijos && grupoNumeroHijos && numeroHijos) {
+        if (tieneHijos.value === '1') {
+            grupoNumeroHijos.style.display = 'flex';
+            numeroHijos.required = true;
+        } else {
+            grupoNumeroHijos.style.display = 'none';
+            numeroHijos.value = '';
+            numeroHijos.required = false;
+        }
+    }
+}
+</script>
 </body>
 </html>

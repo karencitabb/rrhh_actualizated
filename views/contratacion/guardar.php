@@ -26,7 +26,7 @@ $conexion->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 define('MAX_VALOR_MONETARIO', 99999999.99);
 
 function post(string $key, $default = '') {
-    return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
+ b   return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
 }
 
 function postInt(string $key): ?int {
@@ -34,7 +34,7 @@ function postInt(string $key): ?int {
     return $value !== '' ? (int)$value : null;
 }
 
-function postMoney(string $key): float {
+function postMoney(string $key): float {        
     $raw = trim(post($key, '0'));
 
     if ($raw === '') {
