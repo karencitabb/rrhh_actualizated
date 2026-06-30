@@ -1,451 +1,451 @@
-<?php
-ini_set('display_errors', 0);
-ini_set('display_startup_errors', 0);
-ini_set('log_errors', 1);
-error_reporting(E_ALL);
+    <?php
+    ini_set('display_errors', 0);
+    ini_set('display_startup_errors', 0);
+    ini_set('log_errors', 1);
+    error_reporting(E_ALL);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-require_once '../../config/conexion.php';
-
-if (!isset($conexion) && isset($pdo)) {
-    $conexion = $pdo;
-}
-
-if (!isset($conexion) || !($conexion instanceof PDO)) {
-    die('Error: no se encontró una conexión PDO válida. Revisa ../../config/conexion.php');
-}
-
-$conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$conexion->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-
-// Límite preventivo para evitar errores técnicos de MySQL por valores fuera de rango.
-// Ajusta este valor si tu empresa maneja salarios superiores.
-define('MAX_VALOR_MONETARIO', 99999999.99);
-
-function post(string $key, $default = '') {
- b   return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
-}
-
-function postInt(string $key): ?int {
-    $value = post($key);
-    return $value !== '' ? (int)$value : null;
-}
-
-function postMoney(string $key): float {        
-    $raw = trim(post($key, '0'));
-
-    if ($raw === '') {
-        return 0.0;
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
     }
 
-    // Permite valores como 1300000, 1.300.000, 1.300.000,50 o 1300000.50.
-    $raw = preg_replace('/[^0-9,.-]/', '', $raw);
+    require_once '../../config/conexion.php';
 
-    if ($raw === '' || substr_count($raw, '-') > 1 || (strpos($raw, '-') !== false && strpos($raw, '-') !== 0)) {
-        return -1;
+    if (!isset($conexion) && isset($pdo)) {
+        $conexion = $pdo;
     }
 
-    if (str_contains($raw, ',') && str_contains($raw, '.')) {
-        $value = str_replace('.', '', $raw);
-        $value = str_replace(',', '.', $value);
-    } elseif (str_contains($raw, ',')) {
-        $value = str_replace('.', '', $raw);
-        $value = str_replace(',', '.', $value);
-    } else {
-        $value = $raw;
+    if (!isset($conexion) || !($conexion instanceof PDO)) {
+        die('Error: no se encontró una conexión PDO válida. Revisa ../../config/conexion.php');
     }
 
-    return is_numeric($value) ? (float)$value : -1;
-}
+    $conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conexion->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-function redirectWith(string $mensaje): void {
-    header('Location: index.php?mensaje=' . urlencode($mensaje));
-    exit;
-}
+    // Límite preventivo para evitar errores técnicos de MySQL por valores fuera de rango.
+    // Ajusta este valor si tu empresa maneja salarios superiores.
+    define('MAX_VALOR_MONETARIO', 99999999.99);
 
-function columnaExiste(PDO $conexion, string $tabla, string $columna): bool {
-    static $cache = [];
-    $key = $tabla . '.' . $columna;
-
-    if (array_key_exists($key, $cache)) {
-        return $cache[$key];
+    function post(string $key, $default = '') {
+   return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
     }
 
-    $stmt = $conexion->prepare("
-        SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = :tabla
-          AND COLUMN_NAME = :columna
-        LIMIT 1
-    ");
-
-    $stmt->execute([
-        ':tabla' => $tabla,
-        ':columna' => $columna,
-    ]);
-
-    $row = $stmt->fetch();
-    return $cache[$key] = ((int)($row['total'] ?? 0) > 0);
-}
-
-function estadoContrato(?string $fechaFin): string {
-    if (!$fechaFin || $fechaFin === '0000-00-00') {
-        return 'Activo';
+    function postInt(string $key): ?int {
+        $value = post($key);
+        return $value !== '' ? (int)$value : null;
     }
 
-    $hoy = new DateTimeImmutable('today');
-    $fin = DateTimeImmutable::createFromFormat('Y-m-d', $fechaFin);
+    function postMoney(string $key): float {        
+        $raw = trim(post($key, '0'));
 
-    if (!$fin) {
-        return 'Activo';
-    }
-
-    if ($fin < $hoy) {
-        return 'Vencido';
-    }
-
-    if ($fin <= $hoy->modify('+30 days')) {
-        return 'Por vencer';
-    }
-
-    return 'Activo';
-}
-
-function actualizarTrabajadorDesdeContrato(
-    PDO $conexion,
-    int $idTrabajador,
-    ?int $idArea,
-    ?int $idCargo,
-    ?string $fechaIngreso,
-    bool $activarTrabajador = false
-): void {
-    $sets = [];
-    $params = [':id_trabajador' => $idTrabajador];
-
-    if ($activarTrabajador && columnaExiste($conexion, 'trabajadores', 'estado')) {
-        $sets[] = 'estado = 1';
-    }
-
-    if ($idArea !== null && columnaExiste($conexion, 'trabajadores', 'id_area')) {
-        $sets[] = 'id_area = :id_area';
-        $params[':id_area'] = $idArea;
-    }
-
-    if ($idCargo !== null && columnaExiste($conexion, 'trabajadores', 'id_cargo')) {
-        $sets[] = 'id_cargo = :id_cargo';
-        $params[':id_cargo'] = $idCargo;
-    }
-
-    if ($fechaIngreso && columnaExiste($conexion, 'trabajadores', 'fecha_ingreso')) {
-        $sets[] = 'fecha_ingreso = :fecha_ingreso';
-        $params[':fecha_ingreso'] = $fechaIngreso;
-    }
-
-    if (!$sets) {
-        return;
-    }
-
-    $sql = 'UPDATE trabajadores SET ' . implode(', ', $sets) . ' WHERE id_trabajador = :id_trabajador';
-    $stmt = $conexion->prepare($sql);
-    $stmt->execute($params);
-}
-
-function obtenerIdTrabajadorContrato(PDO $conexion, int $idContrato): ?int {
-    $stmt = $conexion->prepare('SELECT id_trabajador FROM contratos WHERE id_contrato = :id_contrato LIMIT 1');
-    $stmt->execute([':id_contrato' => $idContrato]);
-    $row = $stmt->fetch();
-
-    return $row ? (int)$row['id_trabajador'] : null;
-}
-
-function datosContratoPost(): array {
-    $idTiposContrato = postInt('id_tipos_contrato');
-    $fechaInicio = post('fecha_inicio');
-    $fechaFin = post('fecha_fin') ?: null;
-    $salarioBase = postMoney('salario_base');
-
-    return [
-        'id_trabajador' => postInt('id_trabajador'),
-        'id_area' => postInt('id_area'),
-        'id_cargo' => postInt('id_cargo'),
-        'id_tipos_contrato' => $idTiposContrato,
-        'tipo_contrato' => post('tipo_contrato'),
-        'fecha_inicio' => $fechaInicio,
-        'fecha_fin' => $fechaFin,
-        'fecha_ingreso' => post('fecha_ingreso') ?: $fechaInicio,
-        'salario_base' => $salarioBase,
-        'auxilio_transporte' => postMoney('auxilio_transporte'),
-        'estado' => estadoContrato($fechaFin),
-        'jefe_inmediato' => post('jefe_inmediato') ?: null,
-        'jornada' => post('jornada') ?: 'Completa (46h/sem)',
-        'modalidad' => post('modalidad') ?: 'Presencial',
-        'periodo_prueba' => post('periodo_prueba') ?: 'Sin periodo',
-        'observaciones' => post('observaciones') ?: null,
-    ];
-}
-
-function validarDatosContrato(array $data, bool $requiereTrabajador = true): void {
-    if ($requiereTrabajador && empty($data['id_trabajador'])) {
-        redirectWith('datos_incompletos');
-    }
-
-    if (empty($data['id_tipos_contrato']) && empty($data['tipo_contrato'])) {
-        redirectWith('datos_incompletos');
-    }
-
-    if (empty($data['fecha_inicio'])) {
-        redirectWith('datos_incompletos');
-    }
-
-    if (
-        $data['salario_base'] <= 0 ||
-        $data['auxilio_transporte'] < 0 ||
-        $data['salario_base'] > MAX_VALOR_MONETARIO ||
-        $data['auxilio_transporte'] > MAX_VALOR_MONETARIO
-    ) {
-        redirectWith('monto_invalido');
-    }
-}
-
-function insertarContrato(PDO $conexion, array $data): void {
-    $cols = ['id_trabajador', 'fecha_inicio', 'fecha_fin', 'salario_base', 'auxilio_transporte', 'estado', 'jefe_inmediato', 'jornada', 'modalidad', 'periodo_prueba', 'observaciones'];
-    $params = [
-        ':id_trabajador' => $data['id_trabajador'],
-        ':fecha_inicio' => $data['fecha_inicio'],
-        ':fecha_fin' => $data['fecha_fin'],
-        ':salario_base' => $data['salario_base'],
-        ':auxilio_transporte' => $data['auxilio_transporte'],
-        ':estado' => $data['estado'],
-        ':jefe_inmediato' => $data['jefe_inmediato'],
-        ':jornada' => $data['jornada'],
-        ':modalidad' => $data['modalidad'],
-        ':periodo_prueba' => $data['periodo_prueba'],
-        ':observaciones' => $data['observaciones'],
-    ];
-
-    if (columnaExiste($conexion, 'contratos', 'id_area')) {
-        $cols[] = 'id_area';
-        $params[':id_area'] = $data['id_area'];
-    }
-
-    if (columnaExiste($conexion, 'contratos', 'id_cargo')) {
-        $cols[] = 'id_cargo';
-        $params[':id_cargo'] = $data['id_cargo'];
-    }
-
-    if (columnaExiste($conexion, 'contratos', 'id_tipos_contrato')) {
-        $cols[] = 'id_tipos_contrato';
-        $params[':id_tipos_contrato'] = $data['id_tipos_contrato'];
-    } elseif (columnaExiste($conexion, 'contratos', 'tipo_contrato')) {
-        $cols[] = 'tipo_contrato';
-        $params[':tipo_contrato'] = $data['tipo_contrato'];
-    }
-
-    $placeholders = array_map(fn($col) => ':' . $col, $cols);
-
-    $sql = 'INSERT INTO contratos (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $placeholders) . ')';
-    $stmt = $conexion->prepare($sql);
-    $stmt->execute($params);
-}
-
-function actualizarContrato(PDO $conexion, int $idContrato, array $data, bool $forzarActivo = false): void {
-    $sets = [
-        'fecha_inicio = :fecha_inicio',
-        'fecha_fin = :fecha_fin',
-        'salario_base = :salario_base',
-        'auxilio_transporte = :auxilio_transporte',
-        'estado = :estado',
-        'jefe_inmediato = :jefe_inmediato',
-        'jornada = :jornada',
-        'modalidad = :modalidad',
-        'periodo_prueba = :periodo_prueba',
-        'observaciones = :observaciones',
-    ];
-
-    $params = [
-        ':fecha_inicio' => $data['fecha_inicio'],
-        ':fecha_fin' => $data['fecha_fin'],
-        ':salario_base' => $data['salario_base'],
-        ':auxilio_transporte' => $data['auxilio_transporte'],
-        ':estado' => $forzarActivo ? 'Activo' : $data['estado'],
-        ':jefe_inmediato' => $data['jefe_inmediato'],
-        ':jornada' => $data['jornada'],
-        ':modalidad' => $data['modalidad'],
-        ':periodo_prueba' => $data['periodo_prueba'],
-        ':observaciones' => $data['observaciones'],
-        ':id_contrato' => $idContrato,
-    ];
-
-    if (columnaExiste($conexion, 'contratos', 'id_trabajador') && !empty($data['id_trabajador'])) {
-        $sets[] = 'id_trabajador = :id_trabajador';
-        $params[':id_trabajador'] = $data['id_trabajador'];
-    }
-
-    if (columnaExiste($conexion, 'contratos', 'id_area')) {
-        $sets[] = 'id_area = :id_area';
-        $params[':id_area'] = $data['id_area'];
-    }
-
-    if (columnaExiste($conexion, 'contratos', 'id_cargo')) {
-        $sets[] = 'id_cargo = :id_cargo';
-        $params[':id_cargo'] = $data['id_cargo'];
-    }
-
-    if (columnaExiste($conexion, 'contratos', 'id_tipos_contrato')) {
-        $sets[] = 'id_tipos_contrato = :id_tipos_contrato';
-        $params[':id_tipos_contrato'] = $data['id_tipos_contrato'];
-    } elseif (columnaExiste($conexion, 'contratos', 'tipo_contrato')) {
-        $sets[] = 'tipo_contrato = :tipo_contrato';
-        $params[':tipo_contrato'] = $data['tipo_contrato'];
-    }
-
-    $sql = 'UPDATE contratos SET ' . implode(', ', $sets) . ' WHERE id_contrato = :id_contrato';
-    $stmt = $conexion->prepare($sql);
-    $stmt->execute($params);
-}
-
-function esErrorMontoInvalido(Throwable $e): bool {
-    $message = $e->getMessage();
-    $code = (string)$e->getCode();
-
-    return $code === '22003'
-        || str_contains($message, '1264')
-        || str_contains($message, 'Out of range value')
-        || str_contains($message, 'Numeric value out of range');
-}
-
-$accion = post('accion');
-
-try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        redirectWith('metodo_invalido');
-    }
-
-    if ($accion === 'nuevo') {
-        $data = datosContratoPost();
-        validarDatosContrato($data, true);
-
-        $conexion->beginTransaction();
-
-        insertarContrato($conexion, $data);
-
-        actualizarTrabajadorDesdeContrato(
-            $conexion,
-            (int)$data['id_trabajador'],
-            $data['id_area'],
-            $data['id_cargo'],
-            $data['fecha_ingreso'],
-            true
-        );
-
-        $conexion->commit();
-        redirectWith('creado');
-    }
-
-    if ($accion === 'actualizar' || $accion === 'editar') {
-        $idContrato = postInt('contrato_id');
-        $data = datosContratoPost();
-
-        if (!$idContrato) {
-            redirectWith('id_invalido');
+        if ($raw === '') {
+            return 0.0;
         }
 
-        validarDatosContrato($data, false);
+        // Permite valores como 1300000, 1.300.000, 1.300.000,50 o 1300000.50.
+        $raw = preg_replace('/[^0-9,.-]/', '', $raw);
 
-        $conexion->beginTransaction();
+        if ($raw === '' || substr_count($raw, '-') > 1 || (strpos($raw, '-') !== false && strpos($raw, '-') !== 0)) {
+            return -1;
+        }
 
-        actualizarContrato($conexion, $idContrato, $data, false);
+        if (str_contains($raw, ',') && str_contains($raw, '.')) {
+            $value = str_replace('.', '', $raw);
+            $value = str_replace(',', '.', $value);
+        } elseif (str_contains($raw, ',')) {
+            $value = str_replace('.', '', $raw);
+            $value = str_replace(',', '.', $value);
+        } else {
+            $value = $raw;
+        }
 
-        $idTrabajador = $data['id_trabajador'] ?: obtenerIdTrabajadorContrato($conexion, $idContrato);
+        return is_numeric($value) ? (float)$value : -1;
+    }
 
-        if ($idTrabajador) {
+    function redirectWith(string $mensaje): void {
+        header('Location: index.php?mensaje=' . urlencode($mensaje));
+        exit;
+    }
+
+    function columnaExiste(PDO $conexion, string $tabla, string $columna): bool {
+        static $cache = [];
+        $key = $tabla . '.' . $columna;
+
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        $stmt = $conexion->prepare("
+            SELECT COUNT(*) AS total
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = :tabla
+            AND COLUMN_NAME = :columna
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            ':tabla' => $tabla,
+            ':columna' => $columna,
+        ]);
+
+        $row = $stmt->fetch();
+        return $cache[$key] = ((int)($row['total'] ?? 0) > 0);
+    }
+
+    function estadoContrato(?string $fechaFin): string {
+        if (!$fechaFin || $fechaFin === '0000-00-00') {
+            return 'Activo';
+        }
+
+        $hoy = new DateTimeImmutable('today');
+        $fin = DateTimeImmutable::createFromFormat('Y-m-d', $fechaFin);
+
+        if (!$fin) {
+            return 'Activo';
+        }
+
+        if ($fin < $hoy) {
+            return 'Vencido';
+        }
+
+        if ($fin <= $hoy->modify('+30 days')) {
+            return 'Por vencer';
+        }
+
+        return 'Activo';
+    }
+
+    function actualizarTrabajadorDesdeContrato(
+        PDO $conexion,
+        int $idTrabajador,
+        ?int $idArea,
+        ?int $idCargo,
+        ?string $fechaIngreso,
+        bool $activarTrabajador = false
+    ): void {
+        $sets = [];
+        $params = [':id_trabajador' => $idTrabajador];
+
+        if ($activarTrabajador && columnaExiste($conexion, 'trabajadores', 'estado')) {
+            $sets[] = 'estado = 1';
+        }
+
+        if ($idArea !== null && columnaExiste($conexion, 'trabajadores', 'id_area')) {
+            $sets[] = 'id_area = :id_area';
+            $params[':id_area'] = $idArea;
+        }
+
+        if ($idCargo !== null && columnaExiste($conexion, 'trabajadores', 'id_cargo')) {
+            $sets[] = 'id_cargo = :id_cargo';
+            $params[':id_cargo'] = $idCargo;
+        }
+
+        if ($fechaIngreso && columnaExiste($conexion, 'trabajadores', 'fecha_ingreso')) {
+            $sets[] = 'fecha_ingreso = :fecha_ingreso';
+            $params[':fecha_ingreso'] = $fechaIngreso;
+        }
+
+        if (!$sets) {
+            return;
+        }
+
+        $sql = 'UPDATE trabajadores SET ' . implode(', ', $sets) . ' WHERE id_trabajador = :id_trabajador';
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    function obtenerIdTrabajadorContrato(PDO $conexion, int $idContrato): ?int {
+        $stmt = $conexion->prepare('SELECT id_trabajador FROM contratos WHERE id_contrato = :id_contrato LIMIT 1');
+        $stmt->execute([':id_contrato' => $idContrato]);
+        $row = $stmt->fetch();
+
+        return $row ? (int)$row['id_trabajador'] : null;
+    }
+
+    function datosContratoPost(): array {
+        $idTiposContrato = postInt('id_tipos_contrato');
+        $fechaInicio = post('fecha_inicio');
+        $fechaFin = post('fecha_fin') ?: null;
+        $salarioBase = postMoney('salario_base');
+
+        return [
+            'id_trabajador' => postInt('id_trabajador'),
+            'id_area' => postInt('id_area'),
+            'id_cargo' => postInt('id_cargo'),
+            'id_tipos_contrato' => $idTiposContrato,
+            'tipo_contrato' => post('tipo_contrato'),
+            'fecha_inicio' => $fechaInicio,
+            'fecha_fin' => $fechaFin,
+            'fecha_ingreso' => post('fecha_ingreso') ?: $fechaInicio,
+            'salario_base' => $salarioBase,
+            'auxilio_transporte' => postMoney('auxilio_transporte'),
+            'estado' => estadoContrato($fechaFin),
+            'jefe_inmediato' => post('jefe_inmediato') ?: null,
+            'jornada' => post('jornada') ?: 'Completa (46h/sem)',
+            'modalidad' => post('modalidad') ?: 'Presencial',
+            'periodo_prueba' => post('periodo_prueba') ?: 'Sin periodo',
+            'observaciones' => post('observaciones') ?: null,
+        ];
+    }
+
+    function validarDatosContrato(array $data, bool $requiereTrabajador = true): void {
+        if ($requiereTrabajador && empty($data['id_trabajador'])) {
+            redirectWith('datos_incompletos');
+        }
+
+        if (empty($data['id_tipos_contrato']) && empty($data['tipo_contrato'])) {
+            redirectWith('datos_incompletos');
+        }
+
+        if (empty($data['fecha_inicio'])) {
+            redirectWith('datos_incompletos');
+        }
+
+        if (
+            $data['salario_base'] <= 0 ||
+            $data['auxilio_transporte'] < 0 ||
+            $data['salario_base'] > MAX_VALOR_MONETARIO ||
+            $data['auxilio_transporte'] > MAX_VALOR_MONETARIO
+        ) {
+            redirectWith('monto_invalido');
+        }
+    }
+
+    function insertarContrato(PDO $conexion, array $data): void {
+        $cols = ['id_trabajador', 'fecha_inicio', 'fecha_fin', 'salario_base', 'auxilio_transporte', 'estado', 'jefe_inmediato', 'jornada', 'modalidad', 'periodo_prueba', 'observaciones'];
+        $params = [
+            ':id_trabajador' => $data['id_trabajador'],
+            ':fecha_inicio' => $data['fecha_inicio'],
+            ':fecha_fin' => $data['fecha_fin'],
+            ':salario_base' => $data['salario_base'],
+            ':auxilio_transporte' => $data['auxilio_transporte'],
+            ':estado' => $data['estado'],
+            ':jefe_inmediato' => $data['jefe_inmediato'],
+            ':jornada' => $data['jornada'],
+            ':modalidad' => $data['modalidad'],
+            ':periodo_prueba' => $data['periodo_prueba'],
+            ':observaciones' => $data['observaciones'],
+        ];
+
+        if (columnaExiste($conexion, 'contratos', 'id_area')) {
+            $cols[] = 'id_area';
+            $params[':id_area'] = $data['id_area'];
+        }
+
+        if (columnaExiste($conexion, 'contratos', 'id_cargo')) {
+            $cols[] = 'id_cargo';
+            $params[':id_cargo'] = $data['id_cargo'];
+        }
+
+        if (columnaExiste($conexion, 'contratos', 'id_tipos_contrato')) {
+            $cols[] = 'id_tipos_contrato';
+            $params[':id_tipos_contrato'] = $data['id_tipos_contrato'];
+        } elseif (columnaExiste($conexion, 'contratos', 'tipo_contrato')) {
+            $cols[] = 'tipo_contrato';
+            $params[':tipo_contrato'] = $data['tipo_contrato'];
+        }
+
+        $placeholders = array_map(fn($col) => ':' . $col, $cols);
+
+        $sql = 'INSERT INTO contratos (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $placeholders) . ')';
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    function actualizarContrato(PDO $conexion, int $idContrato, array $data, bool $forzarActivo = false): void {
+        $sets = [
+            'fecha_inicio = :fecha_inicio',
+            'fecha_fin = :fecha_fin',
+            'salario_base = :salario_base',
+            'auxilio_transporte = :auxilio_transporte',
+            'estado = :estado',
+            'jefe_inmediato = :jefe_inmediato',
+            'jornada = :jornada',
+            'modalidad = :modalidad',
+            'periodo_prueba = :periodo_prueba',
+            'observaciones = :observaciones',
+        ];
+
+        $params = [
+            ':fecha_inicio' => $data['fecha_inicio'],
+            ':fecha_fin' => $data['fecha_fin'],
+            ':salario_base' => $data['salario_base'],
+            ':auxilio_transporte' => $data['auxilio_transporte'],
+            ':estado' => $forzarActivo ? 'Activo' : $data['estado'],
+            ':jefe_inmediato' => $data['jefe_inmediato'],
+            ':jornada' => $data['jornada'],
+            ':modalidad' => $data['modalidad'],
+            ':periodo_prueba' => $data['periodo_prueba'],
+            ':observaciones' => $data['observaciones'],
+            ':id_contrato' => $idContrato,
+        ];
+
+        if (columnaExiste($conexion, 'contratos', 'id_trabajador') && !empty($data['id_trabajador'])) {
+            $sets[] = 'id_trabajador = :id_trabajador';
+            $params[':id_trabajador'] = $data['id_trabajador'];
+        }
+
+        if (columnaExiste($conexion, 'contratos', 'id_area')) {
+            $sets[] = 'id_area = :id_area';
+            $params[':id_area'] = $data['id_area'];
+        }
+
+        if (columnaExiste($conexion, 'contratos', 'id_cargo')) {
+            $sets[] = 'id_cargo = :id_cargo';
+            $params[':id_cargo'] = $data['id_cargo'];
+        }
+
+        if (columnaExiste($conexion, 'contratos', 'id_tipos_contrato')) {
+            $sets[] = 'id_tipos_contrato = :id_tipos_contrato';
+            $params[':id_tipos_contrato'] = $data['id_tipos_contrato'];
+        } elseif (columnaExiste($conexion, 'contratos', 'tipo_contrato')) {
+            $sets[] = 'tipo_contrato = :tipo_contrato';
+            $params[':tipo_contrato'] = $data['tipo_contrato'];
+        }
+
+        $sql = 'UPDATE contratos SET ' . implode(', ', $sets) . ' WHERE id_contrato = :id_contrato';
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    function esErrorMontoInvalido(Throwable $e): bool {
+        $message = $e->getMessage();
+        $code = (string)$e->getCode();
+
+        return $code === '22003'
+            || str_contains($message, '1264')
+            || str_contains($message, 'Out of range value')
+            || str_contains($message, 'Numeric value out of range');
+    }
+
+    $accion = post('accion');
+
+    try {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirectWith('metodo_invalido');
+        }
+
+        if ($accion === 'nuevo') {
+            $data = datosContratoPost();
+            validarDatosContrato($data, true);
+
+            $conexion->beginTransaction();
+
+            insertarContrato($conexion, $data);
+
+            actualizarTrabajadorDesdeContrato(
+                $conexion,
+                (int)$data['id_trabajador'],
+                $data['id_area'],
+                $data['id_cargo'],
+                $data['fecha_ingreso'],
+                true
+            );
+
+            $conexion->commit();
+            redirectWith('creado');
+        }
+
+        if ($accion === 'actualizar' || $accion === 'editar') {
+            $idContrato = postInt('contrato_id');
+            $data = datosContratoPost();
+
+            if (!$idContrato) {
+                redirectWith('id_invalido');
+            }
+
+            validarDatosContrato($data, false);
+
+            $conexion->beginTransaction();
+
+            actualizarContrato($conexion, $idContrato, $data, false);
+
+            $idTrabajador = $data['id_trabajador'] ?: obtenerIdTrabajadorContrato($conexion, $idContrato);
+
+            if ($idTrabajador) {
+                actualizarTrabajadorDesdeContrato(
+                    $conexion,
+                    $idTrabajador,
+                    $data['id_area'],
+                    $data['id_cargo'],
+                    $data['fecha_ingreso'],
+                    false
+                );
+            }
+
+            $conexion->commit();
+            redirectWith('actualizado');
+        }
+
+        if ($accion === 'renovar') {
+            $idContrato = postInt('contrato_id');
+            $data = datosContratoPost();
+
+            if (!$idContrato) {
+                redirectWith('id_invalido');
+            }
+
+            validarDatosContrato($data, false);
+
+            $conexion->beginTransaction();
+
+            $idTrabajador = $data['id_trabajador'] ?: obtenerIdTrabajadorContrato($conexion, $idContrato);
+
+            if (!$idTrabajador) {
+                $conexion->rollBack();
+                redirectWith('id_invalido');
+            }
+
+            $data['id_trabajador'] = $idTrabajador;
+            $data['estado'] = 'Activo';
+
+            actualizarContrato($conexion, $idContrato, $data, true);
+
             actualizarTrabajadorDesdeContrato(
                 $conexion,
                 $idTrabajador,
                 $data['id_area'],
                 $data['id_cargo'],
-                $data['fecha_ingreso'],
-                false
+                $data['fecha_ingreso'] ?: $data['fecha_inicio'],
+                true
             );
+
+            $conexion->commit();
+            redirectWith('renovado');
         }
 
-        $conexion->commit();
-        redirectWith('actualizado');
-    }
+        if ($accion === 'terminar') {
+            $idContrato = postInt('contrato_id');
 
-    if ($accion === 'renovar') {
-        $idContrato = postInt('contrato_id');
-        $data = datosContratoPost();
+            if (!$idContrato) {
+                redirectWith('id_invalido');
+            }
 
-        if (!$idContrato) {
-            redirectWith('id_invalido');
+            $stmt = $conexion->prepare(" 
+                UPDATE contratos
+                SET estado = 'Terminado',
+                    fecha_fin = CASE
+                        WHEN fecha_fin IS NULL OR fecha_fin > CURDATE() THEN CURDATE()
+                        ELSE fecha_fin
+                    END
+                WHERE id_contrato = :id_contrato
+            ");
+            $stmt->execute([':id_contrato' => $idContrato]);
+
+            redirectWith('terminado');
         }
 
-        validarDatosContrato($data, false);
-
-        $conexion->beginTransaction();
-
-        $idTrabajador = $data['id_trabajador'] ?: obtenerIdTrabajadorContrato($conexion, $idContrato);
-
-        if (!$idTrabajador) {
+        redirectWith('accion_invalida');
+    } catch (Throwable $e) {
+        if ($conexion->inTransaction()) {
             $conexion->rollBack();
-            redirectWith('id_invalido');
         }
 
-        $data['id_trabajador'] = $idTrabajador;
-        $data['estado'] = 'Activo';
+        error_log('[Contratacion guardar.php] ' . $e->getMessage());
 
-        actualizarContrato($conexion, $idContrato, $data, true);
-
-        actualizarTrabajadorDesdeContrato(
-            $conexion,
-            $idTrabajador,
-            $data['id_area'],
-            $data['id_cargo'],
-            $data['fecha_ingreso'] ?: $data['fecha_inicio'],
-            true
-        );
-
-        $conexion->commit();
-        redirectWith('renovado');
-    }
-
-    if ($accion === 'terminar') {
-        $idContrato = postInt('contrato_id');
-
-        if (!$idContrato) {
-            redirectWith('id_invalido');
+        if (esErrorMontoInvalido($e)) {
+            redirectWith('monto_invalido');
         }
 
-        $stmt = $conexion->prepare(" 
-            UPDATE contratos
-            SET estado = 'Terminado',
-                fecha_fin = CASE
-                    WHEN fecha_fin IS NULL OR fecha_fin > CURDATE() THEN CURDATE()
-                    ELSE fecha_fin
-                END
-            WHERE id_contrato = :id_contrato
-        ");
-        $stmt->execute([':id_contrato' => $idContrato]);
-
-        redirectWith('terminado');
+        redirectWith('error');
     }
-
-    redirectWith('accion_invalida');
-} catch (Throwable $e) {
-    if ($conexion->inTransaction()) {
-        $conexion->rollBack();
-    }
-
-    error_log('[Contratacion guardar.php] ' . $e->getMessage());
-
-    if (esErrorMontoInvalido($e)) {
-        redirectWith('monto_invalido');
-    }
-
-    redirectWith('error');
-}

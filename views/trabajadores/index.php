@@ -124,8 +124,7 @@ if (!function_exists('areaBadge')) {
             'Logística'       => 'background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;',
             'Mantenimiento'   => 'background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;',
             'SST'             => 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;',
-            'Gestion Humana'  => 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;'
-        ];
+            ];
 
         $style = $map[$area] ?? 'background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;';
 
@@ -956,9 +955,7 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
       <button class="modal-close" onclick="closeModal()">&#215;</button>
     </div>
 
-    <form action="crear.php" method="POST">
-
-      <div class="modal-body">
+<form action="crear.php?prueba=trabajadores" method="POST">      <div class="modal-body">
 
         <div class="form-section">Información personal</div>
 
@@ -1022,7 +1019,100 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
           </div>
         </div>
 
-<div class="form-section" style="margin-top:6px">Información complementaria</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- INFORMACIÓN LABORAL                              -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="form-section" style="margin-top:6px">Información laboral</div>
+
+<div class="form-row">
+
+    <div class="form-group">
+        <label class="form-label">Área</label>
+
+        <select class="form-select" id="id_area" name="id_area" required>
+
+            <option value="">Seleccionar área</option>
+
+            <?php
+            $stmtAreas = $conexion->query("
+                SELECT id_areas, nombre_area
+                FROM areas
+                ORDER BY nombre_area
+            ");
+
+            while($area = $stmtAreas->fetch(PDO::FETCH_ASSOC)):
+            ?>
+
+                <option value="<?= $area['id_areas']; ?>">
+                    <?= htmlspecialchars($area['nombre_area']); ?>
+                </option>
+
+            <?php endwhile; ?>
+
+        </select>
+
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Cargo</label>
+
+        <select class="form-select" id="id_cargo" name="id_cargo" required>
+            <option value="">Seleccione primero un área</option>
+        </select>
+
+    </div>
+
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Estado laboral</label>
+        <select class="form-select" name="estado" required>
+            <option value="1">Activo</option>
+            <option value="0">Inactivo</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Fecha de ingreso</label>
+        <input class="form-input" type="date" name="fecha_ingreso" required>
+    </div>
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Correo electrónico</label>
+        <input class="form-input" type="email" name="correo_personal"
+               placeholder="correo@empresa.com">
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Teléfono / Celular</label>
+        <input class="form-input" type="tel" name="telefono"
+               placeholder="300 000 0000">
+    </div>
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">EPS</label>
+        <select class="form-select" name="id_eps">
+            <option value="1">Nueva EPS</option>
+            <option value="2">Sanitas</option>
+            <option value="3">Sura</option>
+            <option value="4">Compensar</option>
+            <option value="5">Famisanar</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <!-- celda vacía para mantener el grid de 2 columnas -->
+    </div>
+</div>
+ 
+ <div class="form-section" style="margin-top:6px">Información complementaria</div>
+
 <div class="form-row">
     <div class="form-group">
         <label class="form-label">Formación educativa</label>
@@ -1035,20 +1125,23 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
             <option value="6">Posgrado</option>
         </select>
     </div>
-    <div class="form-group">
-        <label class="form-label">Tipo de sangre</label>
-        <select class="form-select" name="id_sangre">
-            <option value="1">O+</option>
-            <option value="2">O-</option>
-            <option value="3">A+</option>
-            <option value="4">A-</option>
-            <option value="5">B+</option>
-            <option value="6">B-</option>
-            <option value="7">AB+</option>
-            <option value="8">AB-</option>
-        </select>
-    </div>
+
+<div class="form-group">
+    <label class="form-label">Tipo de sangre</label>
+    <select class="form-select" name="id_sangre">
+        <option value="1">O+</option>
+        <option value="2">O-</option>
+        <option value="3">A+</option>
+        <option value="4">A-</option>
+        <option value="5">B+</option>
+        <option value="6">B-</option>
+        <option value="7">AB+</option>
+        <option value="8">AB-</option>
+    </select>
 </div>
+
+</div>
+
 <div class="form-row">
     <div class="form-group">
         <label class="form-label">Estado civil</label>
@@ -1060,19 +1153,20 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
             <option value="5">Viudo(a)</option>
         </select>
     </div>
-    <div class="form-group">
-        <label class="form-label">Grupo étnico</label>
-        <select class="form-select" name="id_grupos_etnicos">
-            <option value="1">No aplica</option>
-            <option value="2">Indígena</option>
-            <option value="3">Afrocolombiano</option>
-            <option value="4">Raizal</option>
-            <option value="5">Palenquero</option>
-            <option value="6">ROM / Gitano</option>
-        </select>
-    </div>
+
+<div class="form-group">
+    <label class="form-label">Grupo étnico</label>
+    <select class="form-select" name="id_grupos_etnicos">
+        <option value="1">No aplica</option>
+        <option value="2">Indígena</option>
+        <option value="3">Afrocolombiano</option>
+        <option value="4">Raizal</option>
+        <option value="5">Palenquero</option>
+        <option value="6">ROM / Gitano</option>
+    </select>
 </div>
-<!-- NUEVO CAMPO: ORIENTACIÓN SEXUAL -->
+
+</div>
 <!-- NUEVO CAMPO: ORIENTACIÓN SEXUAL -->
 <div class="form-row">
 <div class="form-group full">
@@ -1090,6 +1184,8 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
 </div>
 </div>
 
+<!-- HIJOS-->
+
 <div class="form-section" style="margin-top:6px">Información familiar</div>
 <div class="form-row">
   <div class="form-group">
@@ -1105,12 +1201,88 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
   </div>
 </div>
 
-      </div>  
+<!-- ═══════════════════════════════════════════ -->
+<!-- NUEVA SECCIÓN: DOTACIÓN                     -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="form-section" style="margin-top:6px">
+    Dotación (tallas)
+    <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-soft);margin-left:6px;">
+        · Para entrega de EPP y uniforme
+    </span>
+</div>
 
-      <div class="modal-foot">
-        <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn-save">Guardar trabajador</button>
-      </div>
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Talla camisa</label>
+        <select class="form-select" name="talla_camisa">
+            <option value="">Seleccionar</option>
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+            <option value="XXL">XXL</option>
+            <option value="XXXL">XXXL</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Talla pantalón</label>
+        <input class="form-input" type="text" name="talla_pantalon"
+               placeholder="Ej. 32, 34, M, L"
+               maxlength="10">
+    </div>
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Talla botas</label>
+        <input class="form-input" type="number" name="talla_botas"
+               placeholder="Ej. 39"
+               min="30" max="50" step="1">
+    </div>
+    <div class="form-group">
+        <!-- celda vacía para mantener el grid de 2 columnas -->
+    </div>
+</div>
+
+
+
+<!-- SECCIÓN: OBSERVACIONES -->
+<div class="form-section" style="margin-top:12px">
+    Observaciones
+</div>
+
+<div class="form-group full">
+    <label class="form-label">Observaciones adicionales</label>
+
+    <textarea
+        class="form-input"
+        name="observaciones"
+        rows="4"
+        placeholder="Escribe aquí cualquier observación relevante sobre el trabajador..."
+        style="
+            resize:vertical;
+            min-height:100px;
+            padding:12px 14px;
+            font-family:'DM Sans',sans-serif;
+            width:100%;
+        "
+    ></textarea>
+</div>
+
+</div>
+
+<div class="modal-foot">
+    <button type="button" class="btn-cancel" onclick="closeModal()">
+        Cancelar
+    </button>
+
+    <button type="submit" class="btn-save">
+        Guardar trabajador
+    </button>
+</div>
+
 
     </form>
   </div>
@@ -1451,126 +1623,126 @@ tbody td{padding:13px 16px;font-size:13.5px;color:var(--text);vertical-align:mid
         <th><span class="sort-th">ESTADO <svg viewBox="0 0 24 24"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
         <th>ACCIONES</th>
       </tr></thead>
-<tbody>
-      <?php foreach($trabajadores as $t):
-        $id=$t['id_trabajador']??$t['id']??0;
-        $nom=$t['nombres']??'';
-        $ape=$t['apellidos']??'';
-        $doc=$t['numero_documento']??'-';
-        $email=$t['correo_personal']??'-';
-        $tel=$t['telefono']??'';
-        $est=(int)($t['estado']??1);
-        
-        $ar=$t['nombre_area']??'';
-        $carg=$t['nombre_cargo']??'-';
-      ?>
-      <tr>
-        <td>
-          <div class="worker-cell">
-            <div class="worker-avatar" style="background:<?php echo avColor($id)?>"><?php echo avInit($nom,$ape)?></div>
-            <div>
-              <div class="worker-name"><?php echo htmlspecialchars("$nom $ape")?></div>
-              <div class="worker-id">
-                <?php echo 'ID: ' . str_pad($id, 4, '0', STR_PAD_LEFT) . ' · ' . htmlspecialchars(generoNombre($t['id_generos'] ?? 0)); ?>
+  <tbody>
+        <?php foreach($trabajadores as $t):
+          $id=$t['id_trabajador']??$t['id']??0;
+          $nom=$t['nombres']??'';
+          $ape=$t['apellidos']??'';
+          $doc=$t['numero_documento']??'-';
+          $email=$t['correo_personal']??'-';
+          $tel=$t['telefono']??'';
+          $est=(int)($t['estado']??1);
+          
+          $ar=$t['nombre_area']??'';
+          $carg=$t['nombre_cargo']??'-';
+        ?>
+        <tr>
+          <td>
+            <div class="worker-cell">
+              <div class="worker-avatar" style="background:<?php echo avColor($id)?>"><?php echo avInit($nom,$ape)?></div>
+              <div>
+                <div class="worker-name"><?php echo htmlspecialchars("$nom $ape")?></div>
+                <div class="worker-id">
+                  <?php echo 'ID: ' . str_pad($id, 4, '0', STR_PAD_LEFT) . ' · ' . htmlspecialchars(generoNombre($t['id_generos'] ?? 0)); ?>
+                </div>
               </div>
             </div>
-          </div>
-        </td>
-        <td><?php echo htmlspecialchars($doc)?></td>
-        <td>
-          <?php
-          if ($ar !== '') {
-              echo areaBadge($ar);
-          } else {
-              echo '<span style="color:#9ca3af; font-size: 13px;">-</span>';
-          }
-          ?>
-        </td>
-        <td>
-          <?php
-          $tieneHijos = (int)($t['tiene_hijos'] ?? 0);
-          $numHijos = (int)($t['numero_hijos'] ?? 0);
+          </td>
+          <td><?php echo htmlspecialchars($doc)?></td>
+          <td>
+            <?php
+            if ($ar !== '') {
+                echo areaBadge($ar);
+            } else {
+                echo '<span style="color:#9ca3af; font-size: 13px;">-</span>';
+            }
+            ?>
+          </td>
+          <td>
+            <?php
+            $tieneHijos = (int)($t['tiene_hijos'] ?? 0);
+            $numHijos = (int)($t['numero_hijos'] ?? 0);
 
-          if ($tieneHijos === 1) {
-              echo '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px;font-weight:700;">';
-              echo '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">';
-              echo '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>';
-              echo '<circle cx="9" cy="7" r="4"/>';
-              echo '<path d="M23 21v-2a4 4 0 00-3-3.87"/>';
-              echo '<path d="M16 3.13a4 4 0 010 7.75"/>';
-              echo '</svg>';
-              if ($numHijos > 0) {
-                  echo $numHijos . ' ' . ($numHijos === 1 ? 'hijo' : 'hijos');
-              } else {
-                  echo 'Sí';
-              }
-              echo '</span>';
-          } else {
-              echo '<span style="color:#9ca3af;font-size:13px;">Sin hijos</span>';
-          }
-          ?>
-        </td>
-        <td style="font-size: 13px; color: #374151;"><?php echo htmlspecialchars($carg)?></td>
-        <td>
-          <div class="contact-email"><?php echo htmlspecialchars($email)?></div>
-          <?php if($tel):?><div class="contact-phone"><?php echo htmlspecialchars($tel)?></div><?php endif;?>
-        </td>
-        <td>
-          <?php $est = (int)($t['estado'] ?? 1); ?>
-          <?php if ($est === 1): ?>
-            <span class="badge-activo">
-              <span class="badge-dot dot-green"></span>
-              Activo
-            </span>
-          <?php else: ?>
-            <span class="badge-inactivo">
-              <span class="badge-dot dot-red"></span>
-              Inactivo
-            </span>
-          <?php endif; ?>
-        </td>
-        <td>
-          <div class="acc-btns">
+            if ($tieneHijos === 1) {
+                echo '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;font-size:12px;font-weight:700;">';
+                echo '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">';
+                echo '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>';
+                echo '<circle cx="9" cy="7" r="4"/>';
+                echo '<path d="M23 21v-2a4 4 0 00-3-3.87"/>';
+                echo '<path d="M16 3.13a4 4 0 010 7.75"/>';
+                echo '</svg>';
+                if ($numHijos > 0) {
+                    echo $numHijos . ' ' . ($numHijos === 1 ? 'hijo' : 'hijos');
+                } else {
+                    echo 'Sí';
+                }
+                echo '</span>';
+            } else {
+                echo '<span style="color:#9ca3af;font-size:13px;">Sin hijos</span>';
+            }
+            ?>
+          </td>
+          <td style="font-size: 13px; color: #374151;"><?php echo htmlspecialchars($carg)?></td>
+          <td>
+            <div class="contact-email"><?php echo htmlspecialchars($email)?></div>
+            <?php if($tel):?><div class="contact-phone"><?php echo htmlspecialchars($tel)?></div><?php endif;?>
+          </td>
+          <td>
+            <?php $est = (int)($t['estado'] ?? 1); ?>
+            <?php if ($est === 1): ?>
+              <span class="badge-activo">
+                <span class="badge-dot dot-green"></span>
+                Activo
+              </span>
+            <?php else: ?>
+              <span class="badge-inactivo">
+                <span class="badge-dot dot-red"></span>
+                Inactivo
+              </span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <div class="acc-btns">
 
-  <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver">
-    <svg viewBox="0 0 24 24">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>
-  </a>
-
-  <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar">
-    <svg viewBox="0 0 24 24">
-      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  </a>
-
-  <?php if ($est === 1): ?>
-
-    <button type="button"
-            class="acc-btn danger"
-            title="Inactivar trabajador"
-            onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars($nom . ' ' . $ape, ENT_QUOTES, 'UTF-8')?>')">
+    <a href="ver.php?id=<?php echo $id?>" class="acc-btn" title="Ver">
       <svg viewBox="0 0 24 24">
-        <polyline points="3 6 5 6 21 6"/>
-        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-        <path d="M10 11v6M14 11v6"/>
-      </svg>
-    </button>
-
-  <?php else: ?>
-
-    <a href="activar.php?id=<?php echo $id?>"
-       class="acc-btn reactivate"
-       title="Reactivar trabajador">
-      <svg viewBox="0 0 24 24">
-        <polyline points="1 4 1 10 7 10"/>
-        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
       </svg>
     </a>
 
-  <?php endif; ?>
+    <a href="editar.php?id=<?php echo $id?>" class="acc-btn" title="Editar">
+      <svg viewBox="0 0 24 24">
+        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+    </a>
+
+    <?php if ($est === 1): ?>
+
+      <button type="button"
+              class="acc-btn danger"
+              title="Inactivar trabajador"
+              onclick="confirmarEliminar(<?php echo $id?>,'<?php echo htmlspecialchars($nom . ' ' . $ape, ENT_QUOTES, 'UTF-8')?>')">
+        <svg viewBox="0 0 24 24">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+      </button>
+
+    <?php else: ?>
+
+      <a href="activar.php?id=<?php echo $id?>"
+        class="acc-btn reactivate"
+        title="Reactivar trabajador">
+        <svg viewBox="0 0 24 24">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+      </a>
+
+    <?php endif; ?>
 
 </div>
         </td>
@@ -1787,6 +1959,95 @@ setTimeout(function () {
     }, 500);
 
 }, 5000);
+</script>
+<script>
+
+document.getElementById("id_area").addEventListener("change", function(){
+
+    let area = this.value;
+
+    let cargo = document.getElementById("id_cargo");
+
+    cargo.innerHTML =
+        "<option>Cargando...</option>";
+
+    fetch("obtener_cargos.php?id_area=" + area)
+
+    .then(res => res.json())
+
+    .then(datos=>{
+
+        cargo.innerHTML =
+            '<option value="">Seleccionar cargo</option>';
+
+        datos.forEach(c=>{
+
+            cargo.innerHTML +=
+            `<option value="${c.id_cargo}">
+                ${c.nombre_cargo}
+            </option>`;
+
+        });
+
+    });
+
+});
+/* ===========================
+   CARGAR CARGOS POR ÁREA
+=========================== */
+
+const selectArea = document.getElementById("id_area");
+const selectCargo = document.getElementById("id_cargo");
+
+if(selectArea && selectCargo){
+
+    selectArea.addEventListener("change", function(){
+
+        let idArea = this.value;
+
+        selectCargo.innerHTML =
+            '<option value="">Cargando...</option>';
+
+        if(idArea === ""){
+
+            selectCargo.innerHTML =
+                '<option value="">Seleccione primero un área</option>';
+
+            return;
+        }
+
+fetch("obtener_cargos.php?id_area=" + idArea)
+        .then(response => response.json())
+
+        .then(cargos => {
+
+            selectCargo.innerHTML =
+                '<option value="">Seleccionar cargo</option>';
+
+            cargos.forEach(cargo => {
+
+                selectCargo.innerHTML += `
+                    <option value="${cargo.id_cargo}">
+                        ${cargo.nombre_cargo}
+                    </option>
+                `;
+
+            });
+
+        })
+
+        .catch(error => {
+
+            console.error(error);
+
+            selectCargo.innerHTML =
+                '<option value="">Error al cargar cargos</option>';
+
+        });
+
+    });
+
+}
 </script>
 </body>
 </html>

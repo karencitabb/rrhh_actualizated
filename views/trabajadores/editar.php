@@ -264,23 +264,42 @@ $epsOpciones = obtenerOpcionesCatalogo($conexion, 'eps', 'id_eps', ['nombre_eps'
     ['id' => 5, 'nombre' => 'Famisanar']
 ]);
 
-$areasOpciones = obtenerOpcionesCatalogo($conexion, 'areas', 'id_areas', ['nombre_area', 'area', 'nombre', 'descripcion'], [
-    ['id' => 1, 'nombre' => 'Producción'],
-    ['id' => 2, 'nombre' => 'Administrativa'],
-    ['id' => 3, 'nombre' => 'Logística'],
-    ['id' => 4, 'nombre' => 'Mantenimiento'],
-    ['id' => 5, 'nombre' => 'SST'],
-    ['id' => 6, 'nombre' => 'Gestión Humana']
-]);
+$areasOpciones = obtenerOpcionesCatalogo(
+    $conexion,
+    'areas',
+    'id_areas',
+    ['nombre_area', 'area', 'nombre', 'descripcion'],
+    [
+        ['id' => 1, 'nombre' => 'Producción'],
+        ['id' => 2, 'nombre' => 'Administrativa'],
+        ['id' => 3, 'nombre' => 'Logística'],
+        ['id' => 4, 'nombre' => 'Mantenimiento'],
+        ['id' => 5, 'nombre' => 'SST']
+    ]
+);
 
-$cargosOpciones = obtenerOpcionesCatalogo($conexion, 'cargos', 'id_cargo', ['nombre_cargo', 'cargo', 'nombre', 'descripcion'], [
-    ['id' => 1, 'nombre' => 'Operario de Planta'],
-    ['id' => 2, 'nombre' => 'Supervisor de Turno'],
-    ['id' => 3, 'nombre' => 'Jefe de Área'],
-    ['id' => 4, 'nombre' => 'Auxiliar Administrativo'],
-    ['id' => 5, 'nombre' => 'Técnico de Mantenimiento'],
-    ['id' => 6, 'nombre' => 'Practicante']
-]);
+$cargosOpciones = obtenerOpcionesCatalogo(
+    $conexion,
+    'cargos',
+    'id_cargo',
+    ['nombre_cargo', 'cargo', 'nombre', 'descripcion']
+);
+// Obtener los cargos del área seleccionada
+$cargosArea = [];
+
+if (!empty($trabajador['id_area'])) {
+
+    $stmt = $conexion->prepare("
+        SELECT id_cargo, nombre_cargo
+        FROM cargos
+        WHERE id_area = ?
+        ORDER BY nombre_cargo
+    ");
+
+    $stmt->execute([$trabajador['id_area']]);
+    $cargosArea = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -517,8 +536,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
     <a href="index.php" class="nav-item active">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Trabajadores
     </a>
-    <a href="../contratacion/index.php" class="nav-item">
-      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Contratación
+<a href="index.php" class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Contratación
     </a>
     <a href="../novedades/index.php" class="nav-item">
       <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Novedades
@@ -659,6 +678,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
         </div>
         <div class="edit-hint">Los cambios quedarán guardados en la base de datos y podrás verificarlos en la ficha del trabajador.</div>
       </div>
+      <!-- ═══════════════════════════════════════════════ -->
+<!-- OBSERVACIONES                                    -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="edit-section">
+    <div class="edit-section-head">
+        <div class="edit-section-title">Observaciones</div>
+        <div class="edit-section-tag">Notas</div>
+    </div>
+    <div class="edit-form-grid">
+        <div class="edit-field full">
+            <label class="edit-label">Observaciones adicionales</label>
+            <textarea class="edit-input" name="observaciones" rows="5"
+                      placeholder="Escribe aquí cualquier observación relevante sobre el trabajador (antecedentes, recomendaciones, notas de RRHH, etc.)..."
+                      style="height:auto; padding:12px 14px; resize:vertical; font-family:'DM Sans',sans-serif; line-height:1.5;"><?php echo e($trabajador['observaciones'] ?? ''); ?></textarea>
+        </div>
+    </div>
+</section>
 
       <div class="edit-body">
 
@@ -799,17 +835,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--content-bg);color:var(--t
 <label class="edit-label">Número de hijos</label>
 <input class="edit-input" type="number" name="numero_hijos" id="numeroHijos" min="0" max="20" value="<?php echo e($trabajador['numero_hijos'] ?? ''); ?>" placeholder="0">
 </div>
-<div class="edit-field">
-<label class="edit-label">¿Tiene personas a cargo?</label>
-<select class="edit-select" name="tiene_personas_cargo">
-<option value="0" <?php echo selectedOpt($trabajador['tiene_personas_cargo'] ?? '0', '0'); ?>>No</option>
-<option value="1" <?php echo selectedOpt($trabajador['tiene_personas_cargo'] ?? '0', '1'); ?>>Sí</option>
-</select>
-</div>
-<div class="edit-field full">
-<label class="edit-label">Observaciones familiares</label>
-<textarea class="edit-input" name="observaciones_familiares" rows="3" placeholder="Información adicional sobre familiares..." style="height:auto;padding:10px 13px;resize:vertical"><?php echo e($trabajador['observaciones_familiares'] ?? ''); ?></textarea>
-</div>
 <div class="edit-field full">
 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
 <svg viewBox="0 0 24 24" style="width:20px;height:20px;stroke:#16a34a;fill:none;stroke-width:1.8;flex-shrink:0;margin-top:2px">
@@ -842,25 +867,55 @@ Los detalles de familiares (hijos, cónyuge, padres u otros dependientes) podrá
               <input class="edit-input" type="tel" name="telefono" value="<?php echo e($trabajador['celular'] ?? ''); ?>" placeholder="300 000 0000">
             </div>
 
-            <div class="edit-field">
-              <label class="edit-label">Área</label>
-              <select class="edit-select" name="id_area">
-                <option value="">Sin área</option>
-                <?php foreach ($areasOpciones as $op): ?>
-                  <option value="<?php echo (int)$op['id']; ?>" <?php echo selectedOpt($trabajador['id_area'] ?? '', $op['id']); ?>><?php echo e($op['nombre']); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
+<div class="edit-field">
+    <label class="edit-label">Área</label>
 
-            <div class="edit-field">
-              <label class="edit-label">Cargo</label>
-              <select class="edit-select" name="id_cargo">
-                <option value="">Sin cargo</option>
-                <?php foreach ($cargosOpciones as $op): ?>
-                  <option value="<?php echo (int)$op['id']; ?>" <?php echo selectedOpt($trabajador['id_cargo'] ?? '', $op['id']); ?>><?php echo e($op['nombre']); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
+    <select class="edit-select" id="id_area" name="id_area" required>
+
+        <option value="">Seleccionar área</option>
+
+        <?php
+        $stmtAreas = $conexion->query("
+            SELECT id_areas, nombre_area
+            FROM areas
+            ORDER BY nombre_area
+        ");
+
+        while($area = $stmtAreas->fetch(PDO::FETCH_ASSOC)):
+        ?>
+
+            <option
+                value="<?= $area['id_areas']; ?>"
+                <?= ($area['id_areas'] == $trabajador['id_area']) ? 'selected' : ''; ?>>
+                <?= htmlspecialchars($area['nombre_area']); ?>
+            </option>
+
+        <?php endwhile; ?>
+
+    </select>
+</div>
+
+ <div class="edit-field">
+    <label class="edit-label">Cargo</label>
+
+    <select class="edit-select" id="id_cargo" name="id_cargo">
+        <option value="">Seleccione un cargo</option>
+
+        <?php foreach ($cargosArea as $cargo): ?>
+
+            <option
+                value="<?= $cargo['id_cargo']; ?>"
+                <?= selectedOpt($trabajador['id_cargo'], $cargo['id_cargo']); ?>>
+
+                <?= e($cargo['nombre_cargo']); ?>
+
+            </option>
+
+        <?php endforeach; ?>
+
+    </select>
+
+</div>
 
             <div class="edit-field">
               <label class="edit-label">EPS</label>
@@ -878,6 +933,51 @@ Los detalles de familiares (hijos, cónyuge, padres u otros dependientes) podrá
                 <option value="0" <?php echo selectedOpt($estadoTrabajador, 0); ?>>Inactivo</option>
               </select>
             </div>
+            <!-- ══════════════════════════════════════════════ -->
+<!-- DOTACIÓN (TALLAS) - Sub-sección visual           -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="edit-field full" style="margin-top:8px; padding-top:16px; border-top:1px dashed var(--border);">
+    <div style="font-size:11px; font-weight:700; color:var(--text-soft); text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px;">
+        Dotación (tallas)
+        <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-soft); margin-left:6px;">
+            · Para entrega de EPP y uniforme
+        </span>
+    </div>
+</div>
+
+<div class="edit-field">
+    <label class="edit-label">Talla camisa</label>
+    <select class="edit-select" name="talla_camisa">
+        <option value="">Seleccionar</option>
+        <option value="XS" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'XS'); ?>>XS</option>
+        <option value="S" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'S'); ?>>S</option>
+        <option value="M" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'M'); ?>>M</option>
+        <option value="L" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'L'); ?>>L</option>
+        <option value="XL" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'XL'); ?>>XL</option>
+        <option value="XXL" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'XXL'); ?>>XXL</option>
+        <option value="XXXL" <?php echo selectedOpt($trabajador['talla_camisa'] ?? '', 'XXXL'); ?>>XXXL</option>
+    </select>
+</div>
+
+<div class="edit-field">
+    <label class="edit-label">Talla pantalón</label>
+    <input class="edit-input" type="text" name="talla_pantalon"
+           value="<?php echo e($trabajador['talla_pantalon'] ?? ''); ?>"
+           placeholder="Ej. 32, 34, M, L"
+           maxlength="10">
+</div>
+
+<div class="edit-field">
+    <label class="edit-label">Talla botas</label>
+    <input class="edit-input" type="number" name="talla_botas"
+           value="<?php echo e($trabajador['talla_botas'] ?? ''); ?>"
+           placeholder="Ej. 39"
+           min="30" max="50" step="1">
+</div>
+
+<div class="edit-field">
+    <!-- Celda vacía para mantener el grid de 2 columnas -->
+</div>
           </div>
         </section>
 
@@ -933,6 +1033,75 @@ function toggleNumeroHijos() {
         }
     }
 }
+// ==========================================
+// CARGAR CARGOS SEGÚN EL ÁREA (EDITAR)
+// ==========================================
+document.addEventListener("DOMContentLoaded", function () {
+
+    const selectArea = document.getElementById("id_area");
+    const selectCargo = document.getElementById("id_cargo");
+
+    if (!selectArea || !selectCargo) return;
+
+    // Cargo que ya tiene asignado el trabajador
+    const cargoSeleccionado = selectCargo.value;
+
+    function cargarCargos(idArea, cargoActual = null) {
+
+        if (idArea === "") {
+            selectCargo.innerHTML =
+                '<option value="">Seleccione primero un área</option>';
+            return;
+        }
+
+        fetch("obtener_cargos.php?id_area=" + idArea)
+
+            .then(response => response.json())
+
+            .then(cargos => {
+
+                selectCargo.innerHTML =
+                    '<option value="">Seleccionar cargo</option>';
+
+                cargos.forEach(cargo => {
+
+                    const option = document.createElement("option");
+
+                    option.value = cargo.id_cargo;
+                    option.textContent = cargo.nombre_cargo;
+
+                    if (cargoActual && cargo.id_cargo == cargoActual) {
+                        option.selected = true;
+                    }
+
+                    selectCargo.appendChild(option);
+
+                });
+
+            })
+
+            .catch(error => {
+
+                console.error(error);
+
+                selectCargo.innerHTML =
+                    '<option value="">Error al cargar cargos</option>';
+
+            });
+
+    }
+
+    // Al abrir la edición
+    cargarCargos(selectArea.value, cargoSeleccionado);
+
+    // Cuando cambia el área
+    selectArea.addEventListener("change", function () {
+        cargarCargos(this.value);
+    });
+
+});
+
+toggleNumeroHijos();
 </script>
 </body>
 </html>

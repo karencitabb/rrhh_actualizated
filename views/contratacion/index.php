@@ -1,4 +1,4 @@
-﻿  <?php
+﻿﻿  <?php
   ini_set('display_errors', 1);
   ini_set('display_startup_errors', 1);
   error_reporting(E_ALL);
@@ -1744,7 +1744,7 @@
           <div class="contract-package" id="contractPackage">
             <div class="package-head">
               <div><div class="package-title">Paquete de vinculación autogenerado</div><div class="package-sub" id="packageCargoText">Selecciona un cargo para preparar los documentos.</div></div>
-              <span class="package-pill">3 documentos listos</span>
+              <span class="package-pill">3 documentos sin generar. Se generará automáticamente al finalizar.</span>
             </div>
             <div class="doc-grid">
               <div class="doc-card"><div class="doc-icon contract">CT</div><div class="doc-name">Contrato laboral</div><div class="doc-desc">Cláusulas base con cargo, salario, jornada y modalidad.</div><div class="doc-meta">Word editable</div></div>
@@ -2609,11 +2609,3 @@
   </script>
   </body>
   </html>
-
-
-
-
-
-
-
-
