@@ -3,7 +3,7 @@ require __DIR__ . '/../config/conexion.php';
 
 echo "Conexión OK\n";
 
-foreach (['trabajadores','generos','areas','cargo'] as $tabla) {
+foreach (['trabajadores','generos','areas',''] as $tabla) {
     echo "--- $tabla ---\n";
     try {
         $rows = $conexion->query("SELECT * FROM $tabla LIMIT 3")->fetchAll(PDO::FETCH_ASSOC);

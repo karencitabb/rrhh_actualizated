@@ -1,6 +1,7 @@
 {
     "require": {
         "vlucas/phpdotenv": "*",
-        "google/apiclient": "*"
+        "google/apiclient": "*",
+        "phpoffice/phpword": "^1.4"
     }
 }

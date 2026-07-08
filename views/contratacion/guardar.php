@@ -1,4 +1,4 @@
-    <?php
+<?php
     ini_set('display_errors', 0);
     ini_set('display_startup_errors', 0);
     ini_set('log_errors', 1);
@@ -61,8 +61,21 @@
         return is_numeric($value) ? (float)$value : -1;
     }
 
-    function redirectWith(string $mensaje): void {
-        header('Location: index.php?mensaje=' . urlencode($mensaje));
+    function redirectWith(string $mensaje, array $extra = []): void {
+        if (post('formato') === 'json') {
+            $exitosos = ['creado', 'actualizado', 'renovado', 'terminado'];
+            $ok = in_array($mensaje, $exitosos, true);
+
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code($ok ? 200 : 422);
+            echo json_encode(
+                array_merge(['ok' => $ok, 'mensaje' => $mensaje], $extra),
+                JSON_UNESCAPED_UNICODE
+            );
+            exit;
+        }
+
+        header('Location: index.php?' . http_build_query(array_merge(['mensaje' => $mensaje], $extra)));
         exit;
     }
 
@@ -333,6 +346,8 @@
 
             insertarContrato($conexion, $data);
 
+            $nuevoIdContrato = (int)$conexion->lastInsertId();
+
             actualizarTrabajadorDesdeContrato(
                 $conexion,
                 (int)$data['id_trabajador'],
@@ -343,7 +358,7 @@
             );
 
             $conexion->commit();
-            redirectWith('creado');
+            redirectWith('creado', ['id_contrato' => $nuevoIdContrato]);
         }
 
         if ($accion === 'actualizar' || $accion === 'editar') {
@@ -447,5 +462,5 @@
             redirectWith('monto_invalido');
         }
 
-        redirectWith('error');
+        redirectWith('error', ['detalle' => $e->getMessage()]);
     }

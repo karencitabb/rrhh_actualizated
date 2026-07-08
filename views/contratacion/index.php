@@ -1,4 +1,4 @@
-﻿﻿  <?php
+﻿﻿<?php
   ini_set('display_errors', 1);
   ini_set('display_startup_errors', 1);
   error_reporting(E_ALL);
@@ -1076,6 +1076,10 @@
     color: var(--text);
   }
 
+  .trabajador-option[hidden] {
+    display: none;
+  }
+
   .trabajador-option:hover,
   .trabajador-option.is-active {
     background: #f0f8f3;
@@ -1687,7 +1691,6 @@
                           type="button"
                           class="trabajador-option"
                           data-label="<?= e($labelTrabajador) ?>"
-                          data-search="<?= e(mb_strtolower($labelTrabajador, 'UTF-8')) ?>"
                           data-id="<?= (int)$t['id_trabajador'] ?>"
                           data-area="<?= (int)($t['id_area'] ?? 0) ?>"
                           data-cargo="<?= (int)($t['id_cargo'] ?? 0) ?>"
@@ -1731,27 +1734,16 @@
 
               <div class="form-group">
                 <label class="form-label">Jefe inmediato</label>
-                <input class="form-input" type="text" name="jefe_inmediato" id="jefe_inmediato" placeholder="Nombre del jefe">
+                <input class="form-input" type="text" name="jefe_inmediato" id="jefe_inmediato" placeholder="Nombre del jefe" required>
               </div>
 
               <div class="form-group">
                 <label class="form-label">Fecha de ingreso</label>
-                <input class="form-input" type="date" name="fecha_ingreso" id="fecha_ingreso">
+                <input class="form-input" type="date" name="fecha_ingreso" id="fecha_ingreso" required>
               </div>
             </div>
           </div>
 
-          <div class="contract-package" id="contractPackage">
-            <div class="package-head">
-              <div><div class="package-title">Paquete de vinculación autogenerado</div><div class="package-sub" id="packageCargoText">Selecciona un cargo para preparar los documentos.</div></div>
-              <span class="package-pill">3 documentos sin generar. Se generará automáticamente al finalizar.</span>
-            </div>
-            <div class="doc-grid">
-              <div class="doc-card"><div class="doc-icon contract">CT</div><div class="doc-name">Contrato laboral</div><div class="doc-desc">Cláusulas base con cargo, salario, jornada y modalidad.</div><div class="doc-meta">Word editable</div></div>
-              <div class="doc-card"><div class="doc-icon profile">PC</div><div class="doc-name">Perfil de cargo</div><div class="doc-desc">Funciones, responsabilidades, competencias y requisitos del cargo.</div><div class="doc-meta">Word editable</div></div>
-              <div class="doc-card"><div class="doc-icon training">IN</div><div class="doc-name">Inducción</div><div class="doc-desc">Registro de inducción general y entrenamiento especifico.</div><div class="doc-meta">Word editable</div></div>
-            </div>
-          </div>
           </div>
 
           <div class="wizard-panel" id="wizardStep2">
@@ -1822,7 +1814,7 @@
 
               <div class="form-group">
                 <label class="form-label">Auxilio transporte</label>
-                <input class="form-input money-input" type="text" id="auxilio_transporte_view" placeholder="0" value="0" inputmode="numeric">
+                <input class="form-input money-input" type="text" id="auxilio_transporte_view" placeholder="0" value="0" inputmode="numeric" required>
                 <input type="hidden" name="auxilio_transporte" id="auxilio_transporte">
               </div>
             </div>
@@ -1830,30 +1822,154 @@
 
           </div>
 
-          <div class="wizard-panel" id="wizardStep3">
-            <div class="form-section">
-              <div class="form-sec-lbl">Observaciones</div>
-              <div class="form-grid g1">
-                <div class="form-group">
-                  <label class="form-label">Notas adicionales</label>
-                  <textarea class="form-textarea" name="observaciones" id="observaciones" placeholder="Condiciones especiales, acuerdos o notas del contrato..."></textarea>
+<div class="wizard-panel" id="wizardStep3">
+
+    <div class="form-section">
+
+        <div class="form-sec-lbl">
+            Revisión de la contratación
+        </div>
+
+        <div class="review-grid">
+
+            <div class="review-card">
+                <div class="review-label">Trabajador</div>
+                <div class="review-value" id="reviewTrabajador">
+                    —
                 </div>
-              </div>
             </div>
 
-            <div class="form-section">
-              <div class="form-sec-lbl">Revisión antes de guardar</div>
-              <div class="review-grid">
-                <div class="review-card"><div class="review-label">Trabajador</div><div class="review-value" id="reviewTrabajador">Sin selecciónar</div></div>
-                <div class="review-card"><div class="review-label">Cargo</div><div class="review-value" id="reviewCargo">Sin selecciónar</div></div>
-                <div class="review-card"><div class="review-label">Tipo de contrato</div><div class="review-value" id="reviewTipo">Sin selecciónar</div></div>
-                <div class="review-card"><div class="review-label">Inicio</div><div class="review-value" id="reviewInicio">Sin fecha</div></div>
-                <div class="review-card"><div class="review-label">Salario</div><div class="review-value" id="reviewSalario">$0</div></div>
-                <div class="review-card"><div class="review-label">Documentos</div><div class="review-value">Contrato, perfil e induccion</div></div>
-              </div>
+            <div class="review-card">
+                <div class="review-label">Cargo</div>
+                <div class="review-value" id="reviewCargo">
+                    —
+                </div>
             </div>
-          </div>
+
+            <div class="review-card">
+                <div class="review-label">Área</div>
+                <div class="review-value" id="reviewArea">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Tipo de contrato</div>
+                <div class="review-value" id="reviewTipo">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Fecha inicio</div>
+                <div class="review-value" id="reviewInicio">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Fecha final</div>
+                <div class="review-value" id="reviewFin">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Jornada</div>
+                <div class="review-value" id="reviewJornada">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Modalidad</div>
+                <div class="review-value" id="reviewModalidad">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Salario</div>
+                <div class="review-value" id="reviewSalario">
+                    —
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="review-label">Auxilio</div>
+                <div class="review-value" id="reviewAuxilio">
+                    —
+                </div>
+            </div>
+
         </div>
+
+    </div>
+
+
+    <div class="form-section">
+
+        <div class="form-sec-lbl">
+            Documentos que se generarán
+        </div>
+
+        <div class="doc-grid">
+
+            <div class="doc-card">
+
+                <div class="doc-icon contract">CT</div>
+
+                <div class="doc-name">
+                    Contrato Laboral
+                </div>
+
+                <div class="doc-desc">
+                    Se generará automáticamente al confirmar.
+                </div>
+
+            </div>
+
+            <div class="doc-card">
+
+                <div class="doc-icon profile">PC</div>
+
+                <div class="doc-name">
+                    Perfil de Cargo
+                </div>
+
+                <div class="doc-desc">
+                    Se generará automáticamente al confirmar.
+                </div>
+
+            </div>
+
+            <div class="doc-card">
+
+                <div class="doc-icon training">IN</div>
+
+                <div class="doc-name">
+                    Formato de Inducción
+                </div>
+
+                <div class="doc-desc">
+                    Se generará automáticamente al confirmar.
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="form-section" id="panelExitoContratacion" hidden>
+        <div class="form-sec-lbl">Contratación registrada</div>
+        <p class="modal-note" style="margin-bottom:12px;">
+            Contratación registrada correctamente. Ya puedes descargar los documentos generados.
+        </p>
+        <div class="doc-list" id="listaDescargasGeneradas"></div>
+    </div>
+
+</div>
         <div class="modal-footer">
           <div class="modal-footer-left">
             <button class="btn" type="button" onclick="cerrarModalContrato()">Cancelar</button>
@@ -1926,33 +2042,60 @@
     if (wizardPasoContrato === 3) actualizarRevisionContrato();
   }
 
+  function focoConAlerta(id, mensaje) {
+    alert(mensaje);
+    const el = $(id);
+    if (el) el.focus();
+    return false;
+  }
+
   function validarPasoContrato(paso) {
     if (paso === 1) {
       seleccionarTrabajadorBuscado();
+
       if (!$('id_trabajador')?.value) {
-        alert('Selecciona un trabajador válido y disponible de la lista.');
-        $('buscar_trabajador_contrato')?.focus();
-        return false;
+        return focoConAlerta('buscar_trabajador_contrato', 'Selecciona un trabajador válido y disponible de la lista.');
       }
-      for (const id of ['id_area', 'id_cargo']) {
-        const el = $(id);
-        if (el && !el.value) {
-          alert('Completa área y cargo antes de continuar.');
-          el.focus();
-          return false;
-        }
+      if (!$('id_area')?.value) {
+        return focoConAlerta('id_area', 'Selecciona el área del trabajador.');
+      }
+      if (!$('id_cargo')?.value) {
+        return focoConAlerta('id_cargo', 'Selecciona el cargo del trabajador.');
+      }
+      if (!String($('jefe_inmediato')?.value || '').trim()) {
+        return focoConAlerta('jefe_inmediato', 'Indica el jefe inmediato del trabajador.');
+      }
+      if (!String($('fecha_ingreso')?.value || '').trim()) {
+        return focoConAlerta('fecha_ingreso', 'Indica la fecha de ingreso del trabajador.');
       }
     }
+
     if (paso === 2) {
-      for (const id of ['id_tipos_contrato', 'fecha_inicio', 'salario_base_view']) {
-        const el = $(id);
-        if (el && !String(el.value || '').trim()) {
-          alert('Completa las condiciones obligatorias antes de revisar.');
-          el.focus();
-          return false;
-        }
+      if (!$('id_tipos_contrato')?.value) {
+        return focoConAlerta('id_tipos_contrato', 'Selecciona el tipo de contrato.');
+      }
+      if (!String($('fecha_inicio')?.value || '').trim()) {
+        return focoConAlerta('fecha_inicio', 'Indica la fecha de inicio del contrato.');
+      }
+
+      const tipoTexto = textoSelect('id_tipos_contrato').toLowerCase();
+      if (tipoTexto.includes('fijo') && !String($('fecha_fin')?.value || '').trim()) {
+        return focoConAlerta('fecha_fin', 'Este tipo de contrato requiere una fecha de finalización.');
+      }
+      if (!String($('jornada')?.value || '').trim()) {
+        return focoConAlerta('jornada', 'Selecciona la jornada laboral.');
+      }
+      if (!String($('modalidad')?.value || '').trim()) {
+        return focoConAlerta('modalidad', 'Selecciona la modalidad del contrato.');
+      }
+      if (!String($('salario_base_view')?.value || '').trim()) {
+        return focoConAlerta('salario_base_view', 'Indica el salario base del contrato.');
+      }
+      if (!String($('auxilio_transporte_view')?.value || '').trim()) {
+        return focoConAlerta('auxilio_transporte_view', 'Indica el auxilio de transporte (puede ser 0).');
       }
     }
+
     return true;
   }
 
@@ -1965,6 +2108,147 @@
     setWizardPasoContrato(wizardPasoContrato - 1);
   }
 
+  function resetPanelExitoContratacion() {
+    const panel = $('panelExitoContratacion');
+    if (panel) panel.hidden = true;
+
+    const lista = $('listaDescargasGeneradas');
+    if (lista) lista.innerHTML = '';
+
+    const back = $('btnWizardBack');
+    const save = $('btnGuardarContrato');
+    if (back) back.style.display = '';
+    if (save) {
+      save.style.display = '';
+      save.disabled = false;
+    }
+
+    const cancelar = document.querySelector('.modal-footer-left .btn');
+    if (cancelar) {
+      cancelar.textContent = 'Cancelar';
+      cancelar.onclick = function(){ cerrarModalContrato(); };
+    }
+  }
+
+  function mensajeErrorContrato(codigo) {
+    const mensajes = {
+      datos_incompletos: 'Faltan datos obligatorios. Revisa el formulario.',
+      monto_invalido: 'El salario o el auxilio de transporte no son válidos.',
+      id_invalido: 'El ID enviado no es válido.',
+      accion_invalida: 'La acción enviada no es válida.',
+      error: 'Ocurrió un error al procesar la solicitud.'
+    };
+    return mensajes[codigo] || 'Ocurrió un error al guardar la contratación.';
+  }
+
+  function mostrarExitoContratacion(idContrato) {
+    setDisabledForm(true);
+
+    const back = $('btnWizardBack');
+    const save = $('btnGuardarContrato');
+    if (back) back.style.display = 'none';
+    if (save) save.style.display = 'none';
+
+    const cancelar = document.querySelector('.modal-footer-left .btn');
+    if (cancelar) {
+      cancelar.textContent = 'Cerrar';
+      cancelar.onclick = function(){ window.location.href = 'index.php?mensaje=creado'; };
+    }
+
+    const lista = $('listaDescargasGeneradas');
+    if (lista) {
+      lista.innerHTML = '';
+
+      const documentos = [
+        { tipo: 'contrato', nombre: 'Contrato laboral', icono: 'CT', clase: 'contract' },
+        { tipo: 'perfil', nombre: 'Perfil de cargo', icono: 'PC', clase: 'profile' },
+        { tipo: 'induccion', nombre: 'Formato de inducción', icono: 'IN', clase: 'training' }
+      ];
+
+      documentos.forEach(function(doc){
+        const item = document.createElement('div');
+        item.className = 'doc-list-item';
+        item.innerHTML =
+          '<div class="doc-icon ' + doc.clase + '">' + doc.icono + '</div>' +
+          '<div class="doc-list-info">' +
+            '<div class="doc-list-title">' + doc.nombre + '</div>' +
+            '<div class="doc-list-meta">Generado con los datos de esta contratación.</div>' +
+          '</div>' +
+          '<a class="btn btn-primary" style="height:34px;padding:0 12px;" ' +
+            'href="generar_documento.php?tipo=' + doc.tipo + '&id=' + idContrato + '" ' +
+            'target="_blank" rel="noopener">Descargar</a>';
+        lista.appendChild(item);
+      });
+    }
+
+    const panel = $('panelExitoContratacion');
+    if (panel) panel.hidden = false;
+  }
+
+  function generarDocumentosContrato(idContrato) {
+    const tipos = ['contrato', 'perfil', 'induccion'];
+
+    const solicitudes = tipos.map(function(tipo){
+      return fetch('generar_documento.php?tipo=' + tipo + '&id=' + idContrato, {
+        credentials: 'same-origin'
+      }).catch(function(){
+        // Si falla la pre-generación, no bloqueamos: el botón de descarga
+        // vuelve a generarlo bajo demanda al hacer clic.
+        return null;
+      });
+    });
+
+    return Promise.all(solicitudes);
+  }
+
+  function confirmarContratacionNueva() {
+    if (!validarPasoContrato(1) || !validarPasoContrato(2)) {
+      return;
+    }
+
+    const btn = $('btnGuardarContrato');
+    const textoOriginal = btn ? btn.textContent : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Guardando...';
+    }
+
+    const formData = new FormData($('formContrato'));
+    formData.set('formato', 'json');
+
+    fetch('guardar.php', {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function(resp){
+        return resp.json().catch(function(){ return { ok: false, mensaje: 'error' }; });
+      })
+      .then(function(data){
+        if (data && data.ok && data.id_contrato) {
+          if (btn) btn.textContent = 'Generando documentos...';
+          generarDocumentosContrato(data.id_contrato).then(function(){
+            mostrarExitoContratacion(data.id_contrato);
+          });
+        } else {
+          const base = mensajeErrorContrato(data ? data.mensaje : 'error');
+          const detalle = data && data.detalle ? ('\n\nDetalle técnico: ' + data.detalle) : '';
+          alert(base + detalle);
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = textoOriginal;
+          }
+        }
+      })
+      .catch(function(){
+        alert('No se pudo conectar con el servidor. Intenta nuevamente.');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = textoOriginal;
+        }
+      });
+  }
+
   function detectarPaqueteContrato() {
     const cargo = textoSelect('id_cargo');
     const cargoVal = $('id_cargo')?.value || '';
@@ -1974,13 +2258,41 @@
     if (text) text.textContent = cargoVal ? ('Para el cargo: ' + cargo) : 'Selecciona un cargo para preparar los documentos.';
   }
 
-  function actualizarRevisionContrato() {
-    setText('reviewTrabajador', $('buscar_trabajador_contrato')?.value || 'Sin selecciónar');
-    setText('reviewCargo', textoSelect('id_cargo') || 'Sin selecciónar');
-    setText('reviewTipo', textoSelect('id_tipos_contrato') || 'Sin selecciónar');
-    setText('reviewInicio', fechaVista($('fecha_inicio')?.value || ''));
-    setText('reviewSalario', moneyCOP(limpiarNumero($('salario_base_view')?.value || '0')));
-  }
+function actualizarRevisionContrato() {
+
+    setText('reviewTrabajador',
+        $('buscar_trabajador_contrato')?.value || 'Sin seleccionar');
+
+    setText('reviewCargo',
+        textoSelect('id_cargo') || 'Sin seleccionar');
+
+    setText('reviewArea',
+        textoSelect('id_area') || 'Sin seleccionar');
+
+    setText('reviewTipo',
+        textoSelect('id_tipos_contrato') || 'Sin seleccionar');
+
+    setText('reviewInicio',
+        fechaVista($('fecha_inicio')?.value || ''));
+
+    setText('reviewFin',
+        $('fecha_fin')?.value
+            ? fechaVista($('fecha_fin').value)
+            : 'No aplica');
+
+    setText('reviewJornada',
+        textoSelect('jornada') || '-');
+
+    setText('reviewModalidad',
+        textoSelect('modalidad') || '-');
+
+    setText('reviewSalario',
+        moneyCOP(limpiarNumero($('salario_base_view')?.value || '0')));
+
+    setText('reviewAuxilio',
+        moneyCOP(limpiarNumero($('auxilio_transporte_view')?.value || '0')));
+
+}
   function $(id){ return document.getElementById(id); }
 
   function toggleSidebar(){
@@ -2170,12 +2482,13 @@
     if (inputTrabajador) inputTrabajador.dataset.selectedLabel = '';
 
     setDisabledForm(false);
+    resetPanelExitoContratacion();
   }
 
   function nuevoContrato(){
     limpiarFormulario();
     $('modalContratoTitulo').textContent = 'Nueva contratación';
-    $('btnGuardarContrato').textContent = 'Guardar contratación';
+    $('btnGuardarContrato').textContent = 'Confirmar contratación';
     abrirModalContrato();
   }
 
@@ -2547,6 +2860,11 @@
 
       if ($('salario_base')) $('salario_base').value = limpiarNumero(salarioView?.value || '');
       if ($('auxilio_transporte')) $('auxilio_transporte').value = limpiarNumero(auxilioView?.value || '0') || '0';
+
+      if ($('accion')?.value === 'nuevo') {
+        e.preventDefault();
+        confirmarContratacionNueva();
+      }
     });
   }
 
